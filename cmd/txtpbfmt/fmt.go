@@ -1,5 +1,5 @@
 // The fmt command applies standard formatting to text proto files and preserves
-// comments (go/metafactor).
+// comments.
 package main
 
 import (
