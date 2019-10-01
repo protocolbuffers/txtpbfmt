@@ -128,7 +128,7 @@ func TestParsePositions(t *testing.T) {
 			end:   ast.Position{Line: 6},
 		},
 	} {
-		nodes, err := parse([]byte(tc.in))
+		nodes, err := Parse([]byte(tc.in))
 		if err != nil {
 			t.Fatal(err)
 		}

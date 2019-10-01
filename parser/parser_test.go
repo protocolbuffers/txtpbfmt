@@ -30,9 +30,9 @@ func TestError(t *testing.T) {
 	for _, input := range inputs {
 		out, err := Format([]byte(input.in))
 		if err == nil {
-			nodes, err := parse([]byte(input.in))
+			nodes, err := Parse([]byte(input.in))
 			if err != nil {
-				t.Errorf("parse %v returned err %v", input.in, err)
+				t.Errorf("Parse %v returned err %v", input.in, err)
 				continue
 			}
 			t.Errorf("Expected a formatting error but none was raised while formatting:\n%v\nout\n%s\ntree\n%s\n", input.in, out, DebugFormat(nodes, 0))
@@ -661,6 +661,19 @@ presubmit {
 		out: `{ a: 1 }
 { a: 2 }
 { a: 3 }
+`}, {
+		name: "allow unnamed nodes everywhere",
+		in: `
+# txtpbfmt: allow_unnamed_nodes_everywhere
+mapping {{
+  my_proto_field: "foo"
+}}`,
+		out: `# txtpbfmt: allow_unnamed_nodes_everywhere
+mapping {
+  {
+    my_proto_field: "foo"
+  }
+}
 `}}
 	for _, input := range inputs {
 		out, err := Format([]byte(input.in))
@@ -669,9 +682,9 @@ presubmit {
 			continue
 		}
 		if diff := diff.Diff(input.out, string(out)); diff != "" {
-			nodes, err := parse([]byte(input.in))
+			nodes, err := Parse([]byte(input.in))
 			if err != nil {
-				t.Errorf("parse[%s] %v returned err %v", input.name, input.in, err)
+				t.Errorf("Parse[%s] %v returned err %v", input.name, input.in, err)
 				continue
 			}
 			t.Errorf("Format[%s](\n%s\n)\nparsed tree\n%s\n\nreturned diff (-want, +got):\n%s", input.name, input.in, DebugFormat(nodes, 0), diff)

@@ -24,6 +24,10 @@ type Config struct {
 
 	// Skip colons whenever possible.
 	SkipAllColons bool
+
+	// Allow unnamed nodes everywhere (b/131706628).
+	// Default is to allow only top-level nodes to be unnamed (for gqui).
+	AllowUnnamedNodesEverywhere bool
 }
 
 type parser struct {
@@ -34,16 +38,11 @@ type parser struct {
 	// Maps the index of '{' characters on 'in' that have the matching '}' on
 	// the same line to 'true'.
 	bracketSameLine map[int]bool
-
-	skipAllColons bool
-
-	line, column int // current position, 1-based.
+	config          Config
+	line, column    int // current position, 1-based.
 }
 
-var defConfig = Config{
-	ExpandAllChildren: false,
-	SkipAllColons:     false,
-}
+var defConfig = Config{}
 
 func getMetaComments(in []byte) map[string]bool {
 	metaComments := map[string]bool{}
@@ -80,14 +79,7 @@ func FormatWithConfig(in []byte, c Config) ([]byte, error) {
 		log.Infoln("Ignored file with 'disable' comment.")
 		return in, nil
 	}
-	if metaComments["expand_all_children"] {
-		c.ExpandAllChildren = true
-	}
-	if metaComments["skip_all_colons"] {
-		c.SkipAllColons = true
-	}
-
-	nodes, err := ParseWithConfig(in, c)
+	nodes, err := parseWithConfig(in, c, metaComments)
 	if err != nil {
 		return nil, err
 	}
@@ -199,12 +191,25 @@ var (
 
 // Parse returns a tree representation of a textproto file.
 func Parse(in []byte) ([]*ast.Node, error) {
-	return parse(in)
+	return ParseWithConfig(in, defConfig)
 }
 
 // ParseWithConfig functions similar to Parse, but allows the user to pass in
 // additional configuration options.
 func ParseWithConfig(in []byte, c Config) ([]*ast.Node, error) {
+	return parseWithConfig(in, c, getMetaComments(in))
+}
+
+func parseWithConfig(in []byte, c Config, metaComments map[string]bool) ([]*ast.Node, error) {
+	if metaComments["expand_all_children"] {
+		c.ExpandAllChildren = true
+	}
+	if metaComments["skip_all_colons"] {
+		c.SkipAllColons = true
+	}
+	if metaComments["allow_unnamed_nodes_everywhere"] {
+		c.AllowUnnamedNodesEverywhere = true
+	}
 	p, err := newParser(in, c)
 	if err != nil {
 		return nil, err
@@ -215,7 +220,7 @@ func ParseWithConfig(in []byte, c Config) ([]*ast.Node, error) {
 	}
 	// Although unnamed nodes aren't strictly allowed, gqui format represents a
 	// list of protos as a list of unnamed top-level nodes.
-	nodes, _, err := p.parse( /*allowUnnamedNodes=*/ true)
+	nodes, _, err := p.parse( /*isRoot=*/ true)
 	if err != nil {
 		return nil, err
 	}
@@ -223,10 +228,6 @@ func ParseWithConfig(in []byte, c Config) ([]*ast.Node, error) {
 		return nil, fmt.Errorf("parser didn't consume all input. Stopped at %s", p.errorContext())
 	}
 	return nodes, err
-}
-
-func parse(in []byte) ([]*ast.Node, error) {
-	return ParseWithConfig(in, defConfig)
 }
 
 func newParser(in []byte, c Config) (*parser, error) {
@@ -248,7 +249,7 @@ func newParser(in []byte, c Config) (*parser, error) {
 		length:          len(in),
 		log:             log.V(2),
 		bracketSameLine: bracketSameLine,
-		skipAllColons:   c.SkipAllColons,
+		config:          c,
 		line:            1,
 		column:          1,
 	}
@@ -330,7 +331,7 @@ func (p *parser) position() ast.Position {
 // format (i.e. sequence of messages, each of which passes proto.UnmarshalText()).
 // endPos is the position of the first character on the first line
 // after parsed nodes: that's the position to append more children.
-func (p *parser) parse(allowUnnamedNodes bool) (result []*ast.Node, endPos ast.Position, err error) {
+func (p *parser) parse(isRoot bool) (result []*ast.Node, endPos ast.Position, err error) {
 	res := []*ast.Node{}
 	for ld := p.getLoopDetector(); p.index < p.length; {
 		if err := ld.iter(); err != nil {
@@ -423,7 +424,7 @@ func (p *parser) parse(allowUnnamedNodes bool) (result []*ast.Node, endPos ast.P
 		} else {
 			// Read Name.
 			nd.Name = p.readFieldName()
-			if !allowUnnamedNodes && nd.Name == "" {
+			if nd.Name == "" && !isRoot && !p.config.AllowUnnamedNodesEverywhere {
 				return nil, ast.Position{}, fmt.Errorf("Failed to find a FieldName at %s", p.errorContext())
 			}
 		}
@@ -437,12 +438,12 @@ func (p *parser) parse(allowUnnamedNodes bool) (result []*ast.Node, endPos ast.P
 		_, _ = p.skipWhiteSpaceAndReadComments(true /* multiLine */)
 
 		if p.consume('{') || p.consume('<') {
-			if p.skipAllColons {
+			if p.config.SkipAllColons {
 				nd.SkipColon = true
 			}
 			nd.ChildrenSameLine = p.bracketSameLine[p.index-1]
 			// Recursive call to parse child nodes.
-			nodes, lastPos, err := p.parse( /*allowUnnamedNodes=*/ false)
+			nodes, lastPos, err := p.parse( /*isRoot=*/ false)
 			if err != nil {
 				return nil, ast.Position{}, err
 			}
