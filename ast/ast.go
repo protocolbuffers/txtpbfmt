@@ -58,20 +58,6 @@ type Node struct {
 	End Position
 }
 
-// Unquote returns the value of the string node.
-// Calling Unquote on non-string node doesn't panic, but is otherwise undefined.
-func (n *Node) Unquote() (string, error) {
-	var ret strings.Builder
-	for _, v := range n.Values {
-		uq, err := strconv.Unquote(v.Value)
-		if err != nil {
-			return "", err
-		}
-		ret.WriteString(uq)
-	}
-	return ret.String(), nil
-}
-
 // IsCommentOnly returns true if this is a comment-only node.
 func (n *Node) IsCommentOnly() bool {
 	return n.Name == "" && n.Children == nil

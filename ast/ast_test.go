@@ -224,32 +224,3 @@ func TestFixInline(t *testing.T) {
 		}
 	}
 }
-
-func TestUnquote(t *testing.T) {
-	inputs := []struct {
-		in   string
-		want string
-	}{{
-		in:   `name: "value"`,
-		want: "value",
-	}}
-	for _, input := range inputs {
-		nodes, err := parser.Parse([]byte(input.in))
-		if err != nil {
-			t.Errorf("Parse %v returned err %v", input.in, err)
-			continue
-		}
-		if len(nodes) == 0 {
-			t.Errorf("Parse %v returned no nodes", input.in)
-			continue
-		}
-		got, err := nodes[0].Unquote()
-		if err != nil {
-			t.Errorf("Unquote %v returned err %v", input.in, err)
-			continue
-		}
-		if diff := diff.Diff(input.want, got); diff != "" {
-			t.Errorf("Unquote %v returned diff (-want, +got):\n%s", input.in, diff)
-		}
-	}
-}
