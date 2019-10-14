@@ -622,7 +622,7 @@ presubmit {
   }
 }
 `}, {
-		name: "gqui repeated proto format",
+		name: "repeated proto format",
 		in: `{
   		a: 1;
   		b: 2}
@@ -654,7 +654,7 @@ presubmit {
   c: 5
 }
 `}, {
-		name: "gqui repeated proto format with short messages",
+		name: "repeated proto format with short messages",
 		in: `{  		a: 1}
   	{ a: 2  }
   	{ a: 3}`,

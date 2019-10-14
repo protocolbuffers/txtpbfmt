@@ -25,8 +25,8 @@ type Config struct {
 	// Skip colons whenever possible.
 	SkipAllColons bool
 
-	// Allow unnamed nodes everywhere (b/131706628).
-	// Default is to allow only top-level nodes to be unnamed (for gqui).
+	// Allow unnamed nodes everywhere.
+	// Default is to allow only top-level nodes to be unnamed.
 	AllowUnnamedNodesEverywhere bool
 }
 
@@ -218,7 +218,7 @@ func parseWithConfig(in []byte, c Config, metaComments map[string]bool) ([]*ast.
 		p.log.Infof("p.in: %q", string(p.in))
 		p.log.Infof("p.length: %v", p.length)
 	}
-	// Although unnamed nodes aren't strictly allowed, gqui format represents a
+	// Although unnamed nodes aren't strictly allowed, some formats represent a
 	// list of protos as a list of unnamed top-level nodes.
 	nodes, _, err := p.parse( /*isRoot=*/ true)
 	if err != nil {
@@ -327,8 +327,8 @@ func (p *parser) position() ast.Position {
 
 // parse parses a text proto.
 // It assumes the text to be either conformant with the standard text proto
-// (i.e. passes proto.UnmarshalText() without error) or the gqui textproto
-// format (i.e. sequence of messages, each of which passes proto.UnmarshalText()).
+// (i.e. passes proto.UnmarshalText() without error) or the alternative textproto
+// format (sequence of messages, each of which passes proto.UnmarshalText()).
 // endPos is the position of the first character on the first line
 // after parsed nodes: that's the position to append more children.
 func (p *parser) parse(isRoot bool) (result []*ast.Node, endPos ast.Position, err error) {
@@ -795,7 +795,7 @@ func (f formatter) writeNodes(nodes []*ast.Node, depth int, isSameLine bool) {
 			continue
 		}
 		f.WriteString(indent)
-		// Node name may be empty in gqui-style textproto files, because they
+		// Node name may be empty in alternative-style textproto files, because they
 		// contain a sequence of proto messages of the same type:
 		//   { name: "first_msg" }
 		//   { name: "second_msg" }

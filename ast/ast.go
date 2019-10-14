@@ -33,7 +33,7 @@ type Node struct {
 	// Each non-empty line starts with a # and does not contain the trailing newline.
 	PreComments []string
 	// Name of proto field (eg 'presubmit'). Will be an empty string for comment-only
-	// nodes and unqualified messages, e.g. gqui style:
+	// nodes and unqualified messages, e.g.
 	//     { name: "first_msg" }
 	//     { name: "second_msg" }
 	Name string
