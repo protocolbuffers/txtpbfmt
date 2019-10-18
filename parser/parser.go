@@ -10,6 +10,7 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
+	"sort"
 	"strings"
 
 	log "github.com/golang/glog"
@@ -28,6 +29,15 @@ type Config struct {
 	// Allow unnamed nodes everywhere.
 	// Default is to allow only top-level nodes to be unnamed.
 	AllowUnnamedNodesEverywhere bool
+
+	// Sort fields by field name.
+	SortFieldsByFieldName bool
+
+	// Sort adjacent scalar fields of the same field name by their contents.
+	SortRepeatedFieldsByContent bool
+
+	// Remove lines that have the same field name and scalar value as another.
+	RemoveDuplicateValuesForRepeatedFields bool
 }
 
 type parser struct {
@@ -210,6 +220,15 @@ func parseWithConfig(in []byte, c Config, metaComments map[string]bool) ([]*ast.
 	if metaComments["allow_unnamed_nodes_everywhere"] {
 		c.AllowUnnamedNodesEverywhere = true
 	}
+	if metaComments["sort_fields_by_field_name"] {
+		c.SortFieldsByFieldName = true
+	}
+	if metaComments["sort_repeated_fields_by_content"] {
+		c.SortRepeatedFieldsByContent = true
+	}
+	if metaComments["remove_duplicate_values_for_repeated_fields"] {
+		c.RemoveDuplicateValuesForRepeatedFields = true
+	}
 	p, err := newParser(in, c)
 	if err != nil {
 		return nil, err
@@ -227,6 +246,7 @@ func parseWithConfig(in []byte, c Config, metaComments map[string]bool) ([]*ast.
 	if p.index < p.length {
 		return nil, fmt.Errorf("parser didn't consume all input. Stopped at %s", p.errorContext())
 	}
+	sortAndFilterNodes(nodes, nodeSortFunction(c.SortFieldsByFieldName, c.SortRepeatedFieldsByContent), c.RemoveDuplicateValuesForRepeatedFields)
 	return nodes, err
 }
 
@@ -709,6 +729,34 @@ func (p *parser) readTemplate() string {
 	return p.advance(i)
 }
 
+func sortAndFilterNodes(nodes []*ast.Node, sortFunction func([]*ast.Node), removeDuplicates bool) {
+	if len(nodes) == 0 {
+		return
+	}
+	type nameAndValue struct {
+		name, value string
+	}
+	var seen map[nameAndValue]bool
+	if removeDuplicates {
+		seen = make(map[nameAndValue]bool)
+	}
+	for _, nd := range nodes {
+		if seen != nil && len(nd.Values) == 1 {
+			key := nameAndValue{nd.Name, nd.Values[0].Value}
+			if _, value := seen[key]; value {
+				// Name-Value pair found in the same nesting level, deleting.
+				nd.Deleted = true
+			} else {
+				seen[key] = true
+			}
+		}
+		sortAndFilterNodes(nd.Children, sortFunction, removeDuplicates)
+	}
+	if sortFunction != nil {
+		sortFunction(nodes)
+	}
+}
+
 func fixQuotes(s string) string {
 	res := make([]byte, 0, len(s))
 	res = append(res, '"')
@@ -733,6 +781,9 @@ func DebugFormat(nodes []*ast.Node, depth int) string {
 	prefix := strings.Repeat(".", depth)
 	for _, nd := range nodes {
 		var value string
+		if nd.Deleted {
+			res = append(res, "DELETED")
+		}
 		if nd.Children != nil { // Also for 0 children.
 			value = fmt.Sprintf("children:%s", DebugFormat(nd.Children, depth+1))
 		} else {
@@ -742,9 +793,6 @@ func DebugFormat(nodes []*ast.Node, depth int) string {
 			fmt.Sprintf("name: %q", nd.Name),
 			fmt.Sprintf("PreComments: %q (len %d)", strings.Join(nd.PreComments, "\n"), len(nd.PreComments)),
 			value)
-		if nd.Deleted {
-			res = append(res, "deleted")
-		}
 	}
 	return strings.Join(res, fmt.Sprintf("\n%s ", prefix))
 }
@@ -758,8 +806,21 @@ func Pretty(nodes []*ast.Node, depth int) string {
 
 func out(nodes []*ast.Node) []byte {
 	var result bytes.Buffer
-	formatter{&result}.writeNodes(nodes, 0, false /* isSameLine */)
+	formatter{&result}.writeNodes(removeDeleted(nodes), 0, false /* isSameLine */)
 	return result.Bytes()
+}
+
+func nodeSortFunction(sortByFieldName, sortByFieldValue bool) func([]*ast.Node) {
+	switch {
+	case sortByFieldName && sortByFieldValue:
+		return func(ns []*ast.Node) { sort.Stable(ast.ByFieldNameAndValue(ns)) }
+	case sortByFieldName:
+		return func(ns []*ast.Node) { sort.Stable(ast.ByFieldName(ns)) }
+	case sortByFieldValue:
+		return func(ns []*ast.Node) { sort.Stable(ast.ByFieldValue(ns)) }
+	default:
+		return nil
+	}
 }
 
 // stringWriter abstracts over bytes.Buffer and strings.Builder

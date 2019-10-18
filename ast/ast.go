@@ -3,6 +3,7 @@ package ast
 
 import (
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 )
@@ -56,6 +57,67 @@ type Node struct {
 	// For single-line nodes, this is the first character after the last item (usually a space).
 	// For non-message nodes, this is Position zero value.
 	End Position
+}
+
+func sortableNodes(ns []*Node) sortable {
+	return sortable(ns)
+}
+
+type sortable []*Node
+
+func (ns sortable) Len() int {
+	return len(ns)
+}
+
+func (ns sortable) Swap(i, j int) {
+	ns[i], ns[j] = ns[j], ns[i]
+}
+
+// ByFieldName constructs a sort.Interface that sorts nodes by their field name.
+func ByFieldName(ns []*Node) sort.Interface {
+	return byFieldName{sortableNodes(ns)}
+}
+
+type byFieldName struct{ sortable }
+
+func (ns byFieldName) Less(i, j int) bool {
+	ni, nj := ns.sortable[i], ns.sortable[j]
+	return ni.Name < nj.Name
+}
+
+// ByFieldValue constructs a sort.Interface that sorts adjacent scalar nodes with the same name by
+// their value.
+func ByFieldValue(ns []*Node) sort.Interface {
+	return byFieldValue{sortableNodes(ns)}
+}
+
+type byFieldValue struct{ sortable }
+
+func (ns byFieldValue) Less(i, j int) bool {
+	ni, nj := ns.sortable[i], ns.sortable[j]
+	if ni.Name != nj.Name || len(ni.Values) != 1 || len(nj.Values) != 1 {
+		return false
+	}
+	return ni.Values[0].Value < nj.Values[0].Value
+}
+
+// ByFieldNameAndValue constructs a sort.Interface that sorts nodes by their field name and scalar
+// value.
+func ByFieldNameAndValue(ns []*Node) sort.Interface {
+	return byFieldNameAndValue{sortableNodes(ns)}
+}
+
+type byFieldNameAndValue struct{ sortable }
+
+func (ns byFieldNameAndValue) Less(i, j int) bool {
+	ni, nj := ns.sortable[i], ns.sortable[j]
+	if ni.Name != nj.Name {
+		return ni.Name < nj.Name
+	}
+	if len(ni.Values) != 1 || len(nj.Values) != 1 {
+		return false
+	}
+	return ni.Values[0].Value < nj.Values[0].Value
 }
 
 // IsCommentOnly returns true if this is a comment-only node.

@@ -674,6 +674,74 @@ mapping {
     my_proto_field: "foo"
   }
 }
+`}, {
+		name: "sort fields and values",
+		in: `# txtpbfmt: sort_fields_by_field_name
+# txtpbfmt: sort_repeated_fields_by_content
+presubmit: {
+  auto_reviewers: "reviewerB"
+  check_contents: {
+    # Should go after ADD
+    operation: EDIT
+    operation: ADD
+    prohibited_regexp: "UnsafeFunction"
+    check_delta_only: true
+  }
+  # Should go before reviewerB
+  auto_reviewers: "reviewerA"
+}
+`,
+		out: `# txtpbfmt: sort_fields_by_field_name
+# txtpbfmt: sort_repeated_fields_by_content
+presubmit: {
+  # Should go before reviewerB
+  auto_reviewers: "reviewerA"
+  auto_reviewers: "reviewerB"
+  check_contents: {
+    check_delta_only: true
+    operation: ADD
+    # Should go after ADD
+    operation: EDIT
+    prohibited_regexp: "UnsafeFunction"
+  }
+}
+`}, {
+		name: "sort and remove duplicates",
+		in: `# txtpbfmt: sort_fields_by_field_name
+# txtpbfmt: sort_repeated_fields_by_content
+# txtpbfmt: remove_duplicate_values_for_repeated_fields
+presubmit: {
+  auto_reviewers: "reviewerB"
+  # Should go before reviewerB
+  auto_reviewers: "reviewerA"
+  check_contents: {
+    operation: EDIT
+    operation: ADD
+    # Should be removed
+    operation: EDIT
+    prohibited_regexp: "UnsafeFunction"
+    # Should go before operation: ADD
+    check_delta_only: true
+  }
+  # Should be removed
+  auto_reviewers: "reviewerA"
+}
+`,
+		out: `# txtpbfmt: sort_fields_by_field_name
+# txtpbfmt: sort_repeated_fields_by_content
+# txtpbfmt: remove_duplicate_values_for_repeated_fields
+presubmit: {
+  # Should go before reviewerB
+  auto_reviewers: "reviewerA"
+  auto_reviewers: "reviewerB"
+  check_contents: {
+    # Should go before operation: ADD
+    check_delta_only: true
+    operation: ADD
+    operation: EDIT
+    prohibited_regexp: "UnsafeFunction"
+  }
+}
 `}}
 	for _, input := range inputs {
 		out, err := Format([]byte(input.in))
@@ -753,6 +821,156 @@ func TestParserConfigs(t *testing.T) {
     address: "address"
     failure_status: WARNING
     options: "options"
+  }
+}
+`,
+	}, {
+		name: "SortFieldNames",
+		in: `presubmit: {
+  auto_reviewers: "reviewerB"
+  check_contents: {
+    operation: EDIT
+    operation: ADD
+    prohibited_regexp: "UnsafeFunction"
+    check_delta_only: true
+  }
+  # Should remain below reviewerB
+  auto_reviewers: "reviewerA"
+}
+`,
+		config: Config{SortFieldsByFieldName: true},
+		out: `presubmit: {
+  auto_reviewers: "reviewerB"
+  # Should remain below reviewerB
+  auto_reviewers: "reviewerA"
+  check_contents: {
+    check_delta_only: true
+    operation: EDIT
+    operation: ADD
+    prohibited_regexp: "UnsafeFunction"
+  }
+}
+`,
+	}, {
+		name: "SortFieldContents",
+		in: `presubmit: {
+  auto_reviewers: "reviewerB"
+  check_contents: {
+    # Should go after ADD
+    operation: EDIT
+    operation: ADD
+    prohibited_regexp: "UnsafeFunction"
+    check_delta_only: true
+  }
+  # Should remain below
+  auto_reviewers: "reviewerA"
+}
+`,
+		config: Config{SortRepeatedFieldsByContent: true},
+		out: `presubmit: {
+  auto_reviewers: "reviewerB"
+  check_contents: {
+    operation: ADD
+    # Should go after ADD
+    operation: EDIT
+    prohibited_regexp: "UnsafeFunction"
+    check_delta_only: true
+  }
+  # Should remain below
+  auto_reviewers: "reviewerA"
+}
+`,
+	}, {
+		name: "SortFieldNamesAndContents",
+		in: `presubmit: {
+  auto_reviewers: "reviewerB"
+  check_contents: {
+    # Should go after ADD
+    operation: EDIT
+    operation: ADD
+    prohibited_regexp: "UnsafeFunction"
+    check_delta_only: true
+  }
+  # Should go before reviewerB
+  auto_reviewers: "reviewerA"
+}
+`,
+		config: Config{SortFieldsByFieldName: true, SortRepeatedFieldsByContent: true},
+		out: `presubmit: {
+  # Should go before reviewerB
+  auto_reviewers: "reviewerA"
+  auto_reviewers: "reviewerB"
+  check_contents: {
+    check_delta_only: true
+    operation: ADD
+    # Should go after ADD
+    operation: EDIT
+    prohibited_regexp: "UnsafeFunction"
+  }
+}
+`,
+	}, {
+		name: "RemoveRepeats",
+		in: `presubmit: {
+  auto_reviewers: "reviewerB"
+  auto_reviewers: "reviewerA"
+  check_contents: {
+    operation: EDIT
+    operation: ADD
+    # Should be removed
+		operation: EDIT
+    prohibited_regexp: "UnsafeFunction"
+    check_delta_only: true
+  }
+  # Should be removed
+  auto_reviewers: "reviewerA"
+}
+`,
+		config: Config{RemoveDuplicateValuesForRepeatedFields: true},
+		out: `presubmit: {
+  auto_reviewers: "reviewerB"
+  auto_reviewers: "reviewerA"
+  check_contents: {
+    operation: EDIT
+    operation: ADD
+    prohibited_regexp: "UnsafeFunction"
+    check_delta_only: true
+  }
+}
+`,
+	}, {
+		name: "SortEverythingAndRemoveRepeats",
+		in: `presubmit: {
+  auto_reviewers: "reviewerB"
+  # Should go before reviewerB
+  auto_reviewers: "reviewerA"
+  check_contents: {
+    operation: EDIT
+    operation: ADD
+    # Should be removed
+		operation: EDIT
+    prohibited_regexp: "UnsafeFunction"
+    # Should go before operation: ADD
+    check_delta_only: true
+  }
+  # Should be removed
+  auto_reviewers: "reviewerA"
+}
+`,
+		config: Config{
+			SortFieldsByFieldName:                  true,
+			SortRepeatedFieldsByContent:            true,
+			RemoveDuplicateValuesForRepeatedFields: true},
+		out: `presubmit: {
+  # Should go before reviewerB
+  auto_reviewers: "reviewerA"
+  auto_reviewers: "reviewerB"
+  check_contents: {
+    # Should go before operation: ADD
+    check_delta_only: true
+    operation: ADD
+    operation: EDIT
+    prohibited_regexp: "UnsafeFunction"
   }
 }
 `,
