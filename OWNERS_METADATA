@@ -1,0 +1,16 @@
+# Text proto format: devtools_piper.OwnersMetadataFile (go/owners_metadata)
+# See go/silos-lite for details on how to use this file for read access control.
+silo_acl {
+  access_type: OPEN
+  # Do not use Piper as a home for sensitive data, even temporarily.
+  # Please see http://go/source-policy#content-restrictions for more info.
+  # This field must be set to false to indicate awareness of the policy.
+  silo_will_contain_privacy_sensitive_data: false
+
+  # This retains normal access for regular engineers and other accounts.
+  default_ganpati_group: "piper-group-default-access"
+
+  # Ganpati1 groups that are granted *read* access in addition to the default
+  # group above.
+  allowed_ganpati_groups: "job-youtubeanalytics-analyst"
+}
