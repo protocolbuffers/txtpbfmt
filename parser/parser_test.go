@@ -1013,10 +1013,6 @@ func TestDebugFormat(t *testing.T) {
 . name: "name"
 . PreComments: "" (len 0)
 . values: [{Value: "\"value\"", PreComments: "", InlineComment: ""}]
-
- name: ""
- PreComments: "" (len 0)
- values: []
 `,
 	}}
 	for _, input := range inputs {

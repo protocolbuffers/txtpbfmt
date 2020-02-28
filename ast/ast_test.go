@@ -96,13 +96,13 @@ func TestIsCommentOnly(t *testing.T) {
 	}{{
 		in: `foo: 1
 bar: 2`,
-		want: []bool{false, false, true},
+		want: []bool{false, false},
 	},
 		{
 			in: `foo: 1
 bar: 2
 `,
-			want: []bool{false, false, true},
+			want: []bool{false, false},
 		},
 		{
 			in: `foo: 1
@@ -117,7 +117,7 @@ bar: 2
   foo: true  # bar
 }
 `,
-			want: []bool{false, true},
+			want: []bool{false},
 		},
 		{
 			in: `first {
@@ -129,7 +129,7 @@ bar: 2
 		},
 		{
 			in:   `{}`,
-			want: []bool{false, true},
+			want: []bool{false},
 		},
 	}
 	for _, input := range inputs {

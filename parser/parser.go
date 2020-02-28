@@ -433,7 +433,9 @@ func (p *parser) parse(isRoot bool) (result []*ast.Node, endPos ast.Position, er
 		// Handle end of file.
 		if p.index >= p.length {
 			nd.End = p.position()
-			res = append(res, nd)
+			if len(nd.PreComments) > 0 {
+				res = append(res, nd)
+			}
 			break
 		}
 
