@@ -38,6 +38,9 @@ type Config struct {
 
 	// Remove lines that have the same field name and scalar value as another.
 	RemoveDuplicateValuesForRepeatedFields bool
+
+	// Permit usage of Python-style """ or ''' delimited strings.
+	AllowTripleQuotedStrings bool
 }
 
 type parser struct {
@@ -98,7 +101,7 @@ func FormatWithConfig(in []byte, c Config) ([]byte, error) {
 
 // Return the byte-positions of each bracket which has the corresponding close on the
 // same line as a set.
-func sameLineBrackets(in []byte) (map[int]bool, error) {
+func sameLineBrackets(in []byte, allowTripleQuotedStrings bool) (map[int]bool, error) {
 	line := 1
 	type bracket struct {
 		index int
@@ -108,13 +111,10 @@ func sameLineBrackets(in []byte) (map[int]bool, error) {
 	res := map[int]bool{}
 	insideComment := false
 	insideString := false
-	stringDelimiter := rune(' ')
+	insideTripleQuotedString := false
+	var stringDelimiter string
 	isEscapedChar := false
-	for i, c := range string(in) {
-		if isEscapedChar {
-			isEscapedChar = false
-			continue // Ignore escaped char.
-		}
+	for i, c := range in {
 		switch c {
 		case '\n':
 			line++
@@ -146,17 +146,38 @@ func sameLineBrackets(in []byte) (map[int]bool, error) {
 			if insideComment {
 				continue
 			}
+			delim := string(c)
+			tripleQuoted := false
+			if allowTripleQuotedStrings && i+3 <= len(in) {
+				triple := string(in[i : i+3])
+				if triple == `"""` || triple == `'''` {
+					delim = triple
+					tripleQuoted = true
+				}
+			}
+
 			if insideString {
-				if stringDelimiter == c {
+				if stringDelimiter == delim && (insideTripleQuotedString || !isEscapedChar) {
 					insideString = false
+					insideTripleQuotedString = false
 				}
 			} else {
 				insideString = true
-				stringDelimiter = c
+				if tripleQuoted {
+					insideTripleQuotedString = true
+				}
+				stringDelimiter = delim
 			}
-		case '\\':
+		}
+
+		if isEscapedChar {
+			isEscapedChar = false
+		} else if c == '\\' && insideString && !insideTripleQuotedString {
 			isEscapedChar = true
 		}
+	}
+	if insideString {
+		return nil, fmt.Errorf("unterminated string literal")
 	}
 	return res, nil
 }
@@ -229,6 +250,9 @@ func parseWithConfig(in []byte, c Config, metaComments map[string]bool) ([]*ast.
 	if metaComments["remove_duplicate_values_for_repeated_fields"] {
 		c.RemoveDuplicateValuesForRepeatedFields = true
 	}
+	if metaComments["allow_triple_quoted_strings"] {
+		c.AllowTripleQuotedStrings = true
+	}
 	p, err := newParser(in, c)
 	if err != nil {
 		return nil, err
@@ -256,7 +280,7 @@ func newParser(in []byte, c Config) (*parser, error) {
 		bracketSameLine = map[int]bool{}
 	} else {
 		var err error
-		if bracketSameLine, err = sameLineBrackets(in); err != nil {
+		if bracketSameLine, err = sameLineBrackets(in, c.AllowTripleQuotedStrings); err != nil {
 			return nil, err
 		}
 	}
@@ -290,6 +314,19 @@ func (p *parser) consume(b byte) bool {
 		p.line++
 		p.column = 1
 	}
+	return true
+}
+
+// consumeString consumes the given string s, which should not have any newlines.
+func (p *parser) consumeString(s string) bool {
+	if p.index+len(s) > p.length {
+		return false
+	}
+	if string(p.in[p.index:p.index+len(s)]) != s {
+		return false
+	}
+	p.index += len(s)
+	p.column += len(s)
 	return true
 }
 
@@ -631,6 +668,16 @@ func (p *parser) readValues() ([]*ast.Value, error) {
 		values = append(values, p.populateValue(p.readTemplate(), nil))
 		previousPos = p.position()
 	}
+	if p.config.AllowTripleQuotedStrings {
+		v, err := p.readTripleQuotedString()
+		if err != nil {
+			return nil, err
+		}
+		if v != nil {
+			values = append(values, v)
+			previousPos = p.position()
+		}
+	}
 	for p.consume('"') || p.consume('\'') {
 		// Handle string value.
 		stringBegin := p.index - 1 // Index of the quote.
@@ -679,6 +726,33 @@ func (p *parser) readValues() ([]*ast.Value, error) {
 		p.log.Infof("values: %v", values)
 	}
 	return values, nil
+}
+
+func (p *parser) readTripleQuotedString() (*ast.Value, error) {
+	start := p.index
+	stringBegin := p.index
+	delimiter := `"""`
+	if !p.consumeString(delimiter) {
+		delimiter = `'''`
+		if !p.consumeString(delimiter) {
+			return nil, nil
+		}
+	}
+
+	for {
+		if p.consumeString(delimiter) {
+			break
+		}
+		if p.index == p.length {
+			p.index = start
+			return nil, fmt.Errorf("unfinished string at %s", p.errorContext())
+		}
+		p.index++
+	}
+
+	v := p.populateValue(string(p.in[stringBegin:p.index]), nil)
+
+	return v, nil
 }
 
 func (p *parser) populateValue(vl string, preComments []string) *ast.Value {

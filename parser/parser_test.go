@@ -46,11 +46,17 @@ func TestError(t *testing.T) {
 }
 
 func TestPreprocess(t *testing.T) {
+	type testType int
+	const (
+		nonTripleQuotedTest testType = 1
+		tripleQuotedTest    testType = 2
+	)
 	inputs := []struct {
-		name string
-		in   string
-		want map[int]bool
-		err  bool
+		name     string
+		in       string
+		want     map[int]bool
+		err      bool
+		testType testType
 	}{{
 		name: "simple example",
 		//   012
@@ -105,15 +111,53 @@ p        {}`,
 		name: "too many '}'",
 		in:   `p {}}`,
 		err:  true,
+	}, {
+		name: "single quote",
+		in:   `"`,
+		err:  true,
+	}, {
+		name: "double quote",
+		in:   `""`,
+	}, {
+		name:     "triple quoted backlash",
+		in:       `"""\"""`,
+		err:      false,
+		testType: tripleQuotedTest,
+	}, {
+		name:     "triple quoted backlash invalid",
+		in:       `"""\"""`,
+		err:      true,
+		testType: nonTripleQuotedTest,
+	}, {
+		name:     "triple quoted and regular quotes backslash handling",
+		in:       `"""text""" "\""`,
+		err:      false,
+		testType: tripleQuotedTest,
 	}}
 	for _, input := range inputs {
-		have, err := sameLineBrackets([]byte(input.in))
-		if (err != nil) != input.err {
-			t.Errorf("sameLineBrackets[%s] %v returned err %v", input.name, input.in, err)
-			continue
+		bytes := []byte(input.in)
+		// ensure capacity is equal to length to catch slice index out of bounds errors
+		bytes = bytes[0:len(bytes):len(bytes)]
+		if input.testType != tripleQuotedTest {
+			have, err := sameLineBrackets(bytes, false)
+			if (err != nil) != input.err {
+				t.Errorf("sameLineBrackets[%s] allowTripleQuotedStrings=false %v returned err %v", input.name, input.in, err)
+				continue
+			}
+			if diff := pretty.Compare(input.want, have); diff != "" {
+				t.Errorf("sameLineBrackets[%s] allowTripleQuotedStrings=false %v returned diff (-want, +have):\n%s", input.name, input.in, diff)
+			}
 		}
-		if diff := pretty.Compare(input.want, have); diff != "" {
-			t.Errorf("sameLineBrackets[%s] %v returned diff (-want, +have):\n%s", input.name, input.in, diff)
+
+		if input.testType != nonTripleQuotedTest {
+			have, err := sameLineBrackets(bytes, true)
+			if (err != nil) != input.err {
+				t.Errorf("sameLineBrackets[%s] allowTripleQuotedStrings=true %v returned err %v", input.name, input.in, err)
+				continue
+			}
+			if diff := pretty.Compare(input.want, have); diff != "" {
+				t.Errorf("sameLineBrackets[%s] allowTripleQuotedStrings=true %v returned diff (-want, +have):\n%s", input.name, input.in, diff)
+			}
 		}
 	}
 }
@@ -973,6 +1017,62 @@ func TestParserConfigs(t *testing.T) {
     prohibited_regexp: "UnsafeFunction"
   }
 }
+`,
+	}, {
+		name: "TripleQuotedStrings",
+		config: Config{
+			AllowTripleQuotedStrings: true,
+		},
+		in: `foo: """bar"""
+`,
+		out: `foo: """bar"""
+`,
+	}, {
+		name: "TripleQuotedStrings_multiLine",
+		config: Config{
+			AllowTripleQuotedStrings: true,
+		},
+		in: `foo: """
+  bar
+"""
+`,
+		out: `foo: """
+  bar
+"""
+`,
+	}, {
+		name: "TripleQuotedStrings_singleQuotes",
+		config: Config{
+			AllowTripleQuotedStrings: true,
+		},
+		in: `foo: '''
+  bar
+'''
+`,
+		out: `foo: '''
+  bar
+'''
+`,
+	}, {
+		name: "TripleQuotedStrings_brackets",
+		config: Config{
+			AllowTripleQuotedStrings: true,
+		},
+		in: `s: """ "}" """
+`,
+		out: `s: """ "}" """
+`,
+	}, {
+		name: "TripleQuotedStrings_metaComment",
+		in: `# txtpbfmt: allow_triple_quoted_strings
+foo: """
+  bar
+"""
+`,
+		out: `# txtpbfmt: allow_triple_quoted_strings
+foo: """
+  bar
+"""
 `,
 	}}
 	// Test FormatWithConfig with inputs.
