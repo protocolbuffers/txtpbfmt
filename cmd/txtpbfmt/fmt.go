@@ -17,9 +17,11 @@ import (
 
 var (
 	// Top level flags.
-	dryRun            = flag.Bool("dry_run", false, "Enable dry run mode.")
-	expandAllChildren = flag.Bool("expand_all_children", false, "Expand all children irrespective of initial state.")
-	skipAllColons     = flag.Bool("skip_all_colons", false, "Skip colons whenever possible.")
+	dryRun                   = flag.Bool("dry_run", false, "Enable dry run mode.")
+	expandAllChildren        = flag.Bool("expand_all_children", false, "Expand all children irrespective of initial state.")
+	skipAllColons            = flag.Bool("skip_all_colons", false, "Skip colons whenever possible.")
+	allowTripleQuotedStrings = flag.Bool("allow_triple_quoted_strings", false,
+		`Allow Python-style """ or ''' delimited strings in input.`)
 )
 
 const stdinPath = "<stdin>"
@@ -66,8 +68,9 @@ func main() {
 		}
 
 		newContent, err := parser.FormatWithConfig(content, parser.Config{
-			ExpandAllChildren: *expandAllChildren,
-			SkipAllColons:     *skipAllColons,
+			ExpandAllChildren:        *expandAllChildren,
+			SkipAllColons:            *skipAllColons,
+			AllowTripleQuotedStrings: *allowTripleQuotedStrings,
 		})
 		if err != nil {
 			errorf("parser.Format for path %v with content %q returned err %v", path, contentForLogging(content), err)
