@@ -32,7 +32,7 @@ Main features:
 
 ## Is there an API to edit text proto files while preserving comments?
 
-Yes, see [ast.go](ast/ast.go).
+Yes, see [ast.go](ast.go).
 
 ## How to disable it?
 
