@@ -16,6 +16,9 @@ func TestError(t *testing.T) {
 	}{{
 		in: "list_wrong_end: [one, two}",
 	}, {
+		in:  "multy_string_list: ['a' 'b', 'c']",
+		err: "multiple-string value",
+	}, {
 		in: `child_list_notation: [
 		  {`,
 		err: "[{}]",
@@ -305,9 +308,11 @@ presubmit: {
 `,
 		out: `presubmit: {
   check_tests: {
-    action: MAIL
-    action: REVIEW
-    action: SUBMIT
+    action: [
+      MAIL,
+      REVIEW,
+      SUBMIT
+    ]
   }
 }
 `}, {
@@ -369,13 +374,15 @@ tricorder: {
 `,
 		out: `tricorder: {
   options: {
-    # Other build_args comment.
-    # LT.IfChange
-    build_args: "first line"
-    # LT.ThenChange(//foo)
-    build_args: "--config=android_x86"  # Inline comment for android_x86.
-    build_args: "--config=android_release"  # Inline comment for last child.
-    # Comment after list.
+    build_args: [
+      # Other build_args comment.
+      # LT.IfChange
+      "first line",
+      # LT.ThenChange(//foo)
+      "--config=android_x86",  # Inline comment for android_x86.
+      "--config=android_release"  # Inline comment for last child.
+      # Comment after list.
+    ]
   }
 }
 `}, {
@@ -402,6 +409,7 @@ presubmit: {
   # review pre comment 1
   # review pre comment 2
   review_notify: "review_notify_value" # review inline comment
+	# comment for project
   project: [
     # project1 pre comment 1
     # project1 pre comment 2
@@ -429,14 +437,17 @@ presubmit: {
   # review pre comment 1
   # review pre comment 2
   review_notify: "review_notify_value"  # review inline comment
-  # project1 pre comment 1
-  # project1 pre comment 2
-  project: "project1"  # project1 inline comment
-  # project2 pre comment 1
-  # project2 pre comment 2
-  project: "project2"  # project2 inline comment
-  # after comment 1
-  # after comment 2
+  # comment for project
+  project: [
+    # project1 pre comment 1
+    # project1 pre comment 2
+    "project1",  # project1 inline comment
+    # project2 pre comment 1
+    # project2 pre comment 2
+    "project2"  # project2 inline comment
+    # after comment 1
+    # after comment 2
+  ]
   # description pre comment 1
   # description pre comment 2
   description:
@@ -455,13 +466,57 @@ string_with_semicolon: "str one";
 multi_line_with_semicolon: "line 1"
   "line 2";
 other_name: other_value`,
-		out: `list_with_semicolon: one
-list_with_semicolon: two
+		out: `list_with_semicolon: [
+  one,
+  two
+]
 string_with_semicolon: "str one"
 multi_line_with_semicolon:
   "line 1"
   "line 2"
 other_name: other_value
+`}, {
+		name: "keep lists",
+		in: `list_two_items: [one, two];
+list_one_item: [one]
+list_one_item_inline_comment: [one # with inline comment
+]
+list_one_item_pre_comment: [
+# one item comment
+one
+]
+list_one_item_post_comment: [
+one
+# post comment
+]
+list_no_item: []
+# comment
+list_no_item_comment: [
+# as you can see there are no items
+]
+list_no_item_inline_comment: [] # Nothing here`,
+		out: `list_two_items: [
+  one,
+  two
+]
+list_one_item: [one]
+list_one_item_inline_comment: [
+  one  # with inline comment
+]
+list_one_item_pre_comment: [
+  # one item comment
+  one
+]
+list_one_item_post_comment: [
+  one
+  # post comment
+]
+list_no_item: []
+# comment
+list_no_item_comment: [
+  # as you can see there are no items
+]
+list_no_item_inline_comment: []  # Nothing here
 `}, {
 		name: "',' as field separator",
 		in: `# cm

@@ -57,6 +57,8 @@ type parser struct {
 
 var defConfig = Config{}
 
+const indentSpaces = "  "
+
 func getMetaComments(in []byte) map[string]bool {
 	metaComments := map[string]bool{}
 	scanner := bufio.NewScanner(bytes.NewReader(in))
@@ -513,9 +515,10 @@ func (p *parser) parse(isRoot bool) (result []*ast.Node, endPos ast.Position, er
 		} else if p.consume('[') {
 			// Handle list of values.
 
+			nd.ValuesAsList = true // We found values in list - keep it as list.
+
 			// Skip separator.
 			preComments, _ := p.skipWhiteSpaceAndReadComments(true /* multiLine */)
-			nd.PreComments = append(nd.PreComments, preComments...)
 
 			for ld := p.getLoopDetector(); !p.consume(']') && p.index < p.length; {
 				if err := ld.iter(); err != nil {
@@ -526,27 +529,32 @@ func (p *parser) parse(isRoot bool) (result []*ast.Node, endPos ast.Position, er
 				}
 
 				// Read each value in the list.
-				nd.Values, err = p.readValues()
+				vals, err := p.readValues()
 				if err != nil {
 					return nil, ast.Position{}, err
 				}
+				if len(vals) != 1 {
+					return nil, ast.Position{}, fmt.Errorf("multiple-string value not supported (%v). Please add comma explcitily, see http://b/162070952", vals)
+				}
+				vals[0].PreComments = append(vals[0].PreComments, preComments...)
 
 				// Skip separator.
 				_, _ = p.skipWhiteSpaceAndReadComments(false /* multiLine */)
 				if p.consume(',') {
-					nd.Values[0].InlineComment = p.readInlineComment()
+					vals[0].InlineComment = p.readInlineComment()
 				}
-				res = append(res, nd)
 
-				nd = &ast.Node{Name: nd.Name, SkipColon: nd.SkipColon}
-				nd.PreComments, _ = p.skipWhiteSpaceAndReadComments(true /* multiLine */)
+				nd.Values = append(nd.Values, vals...)
+
+				preComments, _ = p.skipWhiteSpaceAndReadComments(true /* multiLine */)
 			}
 
-			// Handle comments after list.
-			if len(nd.PreComments) != 0 {
-				nd.Name = "" // No name, only comment.
-				res = append(res, nd)
-			}
+			res = append(res, nd)
+
+			// Handle comments after last line (or for empty list)
+			nd.PostValuesComments = preComments
+			nd.ClosingBraceComment = p.readInlineComment()
+
 			_ = p.consume(';') // Ignore optional ';'.
 			_ = p.consume(',') // Ignore optional ','.
 			continue
@@ -912,7 +920,7 @@ type formatter struct {
 func (f formatter) writeNodes(nodes []*ast.Node, depth int, isSameLine bool) {
 	indent := " "
 	if !isSameLine {
-		indent = strings.Repeat("  ", depth)
+		indent = strings.Repeat(indentSpaces, depth)
 	}
 	for index, nd := range nodes {
 		for _, comment := range nd.PreComments {
@@ -947,20 +955,22 @@ func (f formatter) writeNodes(nodes []*ast.Node, depth int, isSameLine bool) {
 			//   title: "there was a space here"
 			//   metadata: { ... }
 			// In other cases, there is a newline right after the colon, so no space required.
-			if nd.Children != nil || (len(nd.Values) == 1 && len(nd.Values[0].PreComments) == 0) {
+			if nd.Children != nil || (len(nd.Values) == 1 && len(nd.Values[0].PreComments) == 0) || nd.ValuesAsList {
 				f.WriteString(" ")
 			}
 		}
 
-		if len(nd.Values) > 0 {
-			f.writeValues(nd.Values, indent+"  ")
+		if nd.ValuesAsList { // For ValuesAsList option we will preserve even empty list  `field: []`
+			f.writeValuesAsList(nd, nd.Values, indent+indentSpaces)
+		} else if len(nd.Values) > 0 {
+			f.writeValues(nd.Values, indent+indentSpaces)
 		}
 		if nd.Children != nil { // Also for 0 Children.
 			f.writeChildren(nd.Children, depth+1, (isSameLine || nd.ChildrenSameLine))
-			if len(nd.ClosingBraceComment) > 0 {
-				f.WriteString("  ")
-				f.WriteString(nd.ClosingBraceComment)
-			}
+		}
+		if (nd.Children != nil || nd.ValuesAsList) && len(nd.ClosingBraceComment) > 0 {
+			f.WriteString(indentSpaces)
+			f.WriteString(nd.ClosingBraceComment)
 		}
 
 		if !isSameLine {
@@ -986,10 +996,42 @@ func (f formatter) writeValues(vals []*ast.Value, indent string) {
 		}
 		f.WriteString(v.Value)
 		if len(v.InlineComment) > 0 {
-			f.WriteString("  ")
+			f.WriteString(indentSpaces)
 			f.WriteString(v.InlineComment)
 		}
 	}
+}
+
+func (f formatter) writeValuesAsList(nd *ast.Node, vals []*ast.Value, indent string) {
+	sep := "\n" + indent
+	// Checks if it's possible to put whole list in a single line.
+	if (len(vals) == 0 && len(nd.PostValuesComments) == 0) ||
+		(len(vals) == 1 && len(vals[0].PreComments) == 0 && len(vals[0].InlineComment) == 0 && len(nd.PostValuesComments) == 0) {
+		sep = ""
+	}
+	f.WriteString("[")
+
+	for idx, v := range vals {
+		for _, comment := range v.PreComments {
+			f.WriteString(sep)
+			f.WriteString(comment)
+		}
+		f.WriteString(sep)
+		f.WriteString(v.Value)
+		if idx < len(vals)-1 { // Don't put trailing comma that fails Python parser.
+			f.WriteString(",")
+		}
+		if len(v.InlineComment) > 0 {
+			f.WriteString(indentSpaces)
+			f.WriteString(v.InlineComment)
+		}
+	}
+	for _, comment := range nd.PostValuesComments {
+		f.WriteString(sep)
+		f.WriteString(comment)
+	}
+	f.WriteString(strings.Replace(sep, indentSpaces, "", 1))
+	f.WriteString("]")
 }
 
 // writeChildren writes the child nodes. The result always ends with a closing brace.
@@ -1004,7 +1046,7 @@ func (f formatter) writeChildren(children []*ast.Node, depth int, sameLine bool)
 	default:
 		f.WriteString("{\n")
 		f.writeNodes(children, depth, sameLine)
-		f.WriteString(strings.Repeat("  ", depth-1))
+		f.WriteString(strings.Repeat(indentSpaces, depth-1))
 		f.WriteString("}")
 	}
 }

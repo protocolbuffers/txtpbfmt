@@ -57,6 +57,16 @@ type Node struct {
 	// For single-line nodes, this is the first character after the last item (usually a space).
 	// For non-message nodes, this is Position zero value.
 	End Position
+	// Keep values in list (e.g "list: [1, 2]").
+	ValuesAsList bool
+	// Lines of comments appearing after last value inside list.
+	// Each non-empty line starts with a # and does not contain the trailing newline.
+	// e.g
+	// field: [
+	//   value
+	//   # Comment
+	// ]
+	PostValuesComments []string
 }
 
 func sortableNodes(ns []*Node) sortable {
