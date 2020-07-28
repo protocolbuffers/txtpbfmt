@@ -516,6 +516,7 @@ func (p *parser) parse(isRoot bool) (result []*ast.Node, endPos ast.Position, er
 			// Handle list of values.
 
 			nd.ValuesAsList = true // We found values in list - keep it as list.
+			openBracketLine := p.line
 
 			// Skip separator.
 			preComments, _ := p.skipWhiteSpaceAndReadComments(true /* multiLine */)
@@ -548,6 +549,7 @@ func (p *parser) parse(isRoot bool) (result []*ast.Node, endPos ast.Position, er
 
 				preComments, _ = p.skipWhiteSpaceAndReadComments(true /* multiLine */)
 			}
+			nd.ChildrenSameLine = (openBracketLine == p.line)
 
 			res = append(res, nd)
 
@@ -1003,11 +1005,21 @@ func (f formatter) writeValues(vals []*ast.Value, indent string) {
 }
 
 func (f formatter) writeValuesAsList(nd *ast.Node, vals []*ast.Value, indent string) {
-	sep := "\n" + indent
 	// Checks if it's possible to put whole list in a single line.
-	if (len(vals) == 0 && len(nd.PostValuesComments) == 0) ||
-		(len(vals) == 1 && len(vals[0].PreComments) == 0 && len(vals[0].InlineComment) == 0 && len(nd.PostValuesComments) == 0) {
-		sep = ""
+	sameLine := nd.ChildrenSameLine && len(nd.PostValuesComments) == 0
+	if sameLine {
+		// Parser found all children on a same line, but we need to check again.
+		// It's possible that AST was modified after parsing.
+		for _, val := range vals {
+			if len(val.PreComments) > 0 || len(vals[0].InlineComment) > 0 {
+				sameLine = false
+				break
+			}
+		}
+	}
+	sep := ""
+	if !sameLine {
+		sep = "\n" + indent
 	}
 	f.WriteString("[")
 
@@ -1020,6 +1032,9 @@ func (f formatter) writeValuesAsList(nd *ast.Node, vals []*ast.Value, indent str
 		f.WriteString(v.Value)
 		if idx < len(vals)-1 { // Don't put trailing comma that fails Python parser.
 			f.WriteString(",")
+			if sameLine {
+				f.WriteString(" ")
+			}
 		}
 		if len(v.InlineComment) > 0 {
 			f.WriteString(indentSpaces)

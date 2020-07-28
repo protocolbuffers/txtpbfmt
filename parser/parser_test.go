@@ -308,11 +308,7 @@ presubmit: {
 `,
 		out: `presubmit: {
   check_tests: {
-    action: [
-      MAIL,
-      REVIEW,
-      SUBMIT
-    ]
+    action: [MAIL, REVIEW, SUBMIT]
   }
 }
 `}, {
@@ -466,10 +462,7 @@ string_with_semicolon: "str one";
 multi_line_with_semicolon: "line 1"
   "line 2";
 other_name: other_value`,
-		out: `list_with_semicolon: [
-  one,
-  two
-]
+		out: `list_with_semicolon: [one, two]
 string_with_semicolon: "str one"
 multi_line_with_semicolon:
   "line 1"
@@ -477,8 +470,12 @@ multi_line_with_semicolon:
 other_name: other_value
 `}, {
 		name: "keep lists",
-		in: `list_two_items: [one, two];
+		in: `list_two_items_inline: [one, two];
+ list_two_items: [one,
+ two];
 list_one_item: [one]
+list_one_item_multiline: [
+one]
 list_one_item_inline_comment: [one # with inline comment
 ]
 list_one_item_pre_comment: [
@@ -490,16 +487,22 @@ one
 # post comment
 ]
 list_no_item: []
+list_no_item: [
+]
 # comment
 list_no_item_comment: [
 # as you can see there are no items
 ]
 list_no_item_inline_comment: [] # Nothing here`,
-		out: `list_two_items: [
+		out: `list_two_items_inline: [one, two]
+list_two_items: [
   one,
   two
 ]
 list_one_item: [one]
+list_one_item_multiline: [
+  one
+]
 list_one_item_inline_comment: [
   one  # with inline comment
 ]
@@ -512,6 +515,8 @@ list_one_item_post_comment: [
   # post comment
 ]
 list_no_item: []
+list_no_item: [
+]
 # comment
 list_no_item_comment: [
   # as you can see there are no items
