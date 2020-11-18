@@ -80,8 +80,7 @@ func getMetaComments(in []byte) map[string]bool {
 	return metaComments
 }
 
-// Format formats a metadata file, preserving comments, as discussed on
-// go/metafactor.
+// Format formats a text proto file preserving comments.
 func Format(in []byte) ([]byte, error) {
 	return FormatWithConfig(in, defConfig)
 }
