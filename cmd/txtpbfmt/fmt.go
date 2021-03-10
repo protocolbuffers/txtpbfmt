@@ -22,6 +22,7 @@ var (
 	skipAllColons            = flag.Bool("skip_all_colons", false, "Skip colons whenever possible.")
 	allowTripleQuotedStrings = flag.Bool("allow_triple_quoted_strings", false,
 		`Allow Python-style """ or ''' delimited strings in input.`)
+	sortFieldsByFieldName = flag.Bool("sort_fields_by_field_name", false, "Sort fields by field name.")
 )
 
 const stdinPath = "<stdin>"
@@ -69,6 +70,7 @@ func main() {
 
 		newContent, err := parser.FormatWithConfig(content, parser.Config{
 			ExpandAllChildren:        *expandAllChildren,
+			SortFieldsByFieldName:    *sortFieldsByFieldName,
 			SkipAllColons:            *skipAllColons,
 			AllowTripleQuotedStrings: *allowTripleQuotedStrings,
 		})
