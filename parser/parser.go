@@ -437,6 +437,9 @@ func (p *parser) parse(isRoot bool) (result []*ast.Node, endPos ast.Position, er
 				endPos.Column--
 			}
 
+			_ = p.consume(';') // Ignore optional ';'.
+			_ = p.consume(',') // Ignore optional ','.
+
 			// Done parsing children.
 			return res, endPos, nil
 		}

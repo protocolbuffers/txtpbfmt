@@ -846,6 +846,29 @@ presubmit: {
     prohibited_regexp: "UnsafeFunction"
   }
 }
+`}, {
+		name: "trailing comma / semicolon",
+		in: `dict: {
+	arg: {
+		key: "first_value"
+		value: { num: 0 }
+	},
+	arg: {
+		key: "second_value"
+		value: { num: 1 }
+	};
+}
+`,
+		out: `dict: {
+  arg: {
+    key: "first_value"
+    value: { num: 0 }
+  }
+  arg: {
+    key: "second_value"
+    value: { num: 1 }
+  }
+}
 `}}
 	for _, input := range inputs {
 		out, err := Format([]byte(input.in))
