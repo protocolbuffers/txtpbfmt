@@ -41,6 +41,11 @@ type Config struct {
 
 	// Permit usage of Python-style """ or ''' delimited strings.
 	AllowTripleQuotedStrings bool
+
+	// The default sort function to use when both SortFieldsByFieldName and
+	// SortRepeatedFieldsByContent are false.
+	// Default (nil) results in no sorting.
+	DefaultSortFunction func([]*ast.Node)
 }
 
 type parser struct {
@@ -271,7 +276,7 @@ func parseWithConfig(in []byte, c Config, metaComments map[string]bool) ([]*ast.
 	if p.index < p.length {
 		return nil, fmt.Errorf("parser didn't consume all input. Stopped at %s", p.errorContext())
 	}
-	sortAndFilterNodes(nodes, nodeSortFunction(c.SortFieldsByFieldName, c.SortRepeatedFieldsByContent), c.RemoveDuplicateValuesForRepeatedFields)
+	sortAndFilterNodes(nodes, nodeSortFunction(c.SortFieldsByFieldName, c.SortRepeatedFieldsByContent, c.DefaultSortFunction), c.RemoveDuplicateValuesForRepeatedFields)
 	return nodes, err
 }
 
@@ -898,7 +903,7 @@ func out(nodes []*ast.Node) []byte {
 	return result.Bytes()
 }
 
-func nodeSortFunction(sortByFieldName, sortByFieldValue bool) func([]*ast.Node) {
+func nodeSortFunction(sortByFieldName, sortByFieldValue bool, defaultSortFunction func([]*ast.Node)) func([]*ast.Node) {
 	switch {
 	case sortByFieldName && sortByFieldValue:
 		return func(ns []*ast.Node) { sort.Stable(ast.ByFieldNameAndValue(ns)) }
@@ -907,7 +912,7 @@ func nodeSortFunction(sortByFieldName, sortByFieldValue bool) func([]*ast.Node) 
 	case sortByFieldValue:
 		return func(ns []*ast.Node) { sort.Stable(ast.ByFieldValue(ns)) }
 	default:
-		return nil
+		return defaultSortFunction
 	}
 }
 

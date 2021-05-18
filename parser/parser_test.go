@@ -2,11 +2,13 @@
 package parser
 
 import (
+	"sort"
 	"strings"
 	"testing"
 
 	"github.com/kylelemons/godebug/diff"
 	"github.com/kylelemons/godebug/pretty"
+	"github.com/protocolbuffers/txtpbfmt/ast"
 )
 
 func TestError(t *testing.T) {
@@ -1034,6 +1036,33 @@ func TestParserConfigs(t *testing.T) {
     operation: EDIT
     prohibited_regexp: "UnsafeFunction"
   }
+}
+`,
+	}, {
+		name: "DefaultSortFunction",
+		in: `presubmit: {
+  # Should go before reviewerA
+  auto_reviewers: "reviewerB"
+  check_contents: {
+	  operation: ADD
+    operation: EDIT
+    prohibited_regexp: "UnsafeFunction"
+    check_delta_only: true
+  }
+  auto_reviewers: "reviewerA"
+}
+`,
+		config: Config{DefaultSortFunction: func(ns []*ast.Node) { sort.Stable(sort.Reverse(ast.ByFieldName(ns))) }},
+		out: `presubmit: {
+  check_contents: {
+    prohibited_regexp: "UnsafeFunction"
+    operation: ADD
+    operation: EDIT
+    check_delta_only: true
+  }
+  # Should go before reviewerA
+  auto_reviewers: "reviewerB"
+  auto_reviewers: "reviewerA"
 }
 `,
 	}, {
