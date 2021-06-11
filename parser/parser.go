@@ -41,6 +41,9 @@ type Config struct {
 
 	// Permit usage of Python-style """ or ''' delimited strings.
 	AllowTripleQuotedStrings bool
+
+	// Reflow comments and multi-line strings to stay within 80 character long.
+	EnableLineLimit bool
 }
 
 type parser struct {
@@ -58,6 +61,9 @@ type parser struct {
 var defConfig = Config{}
 
 const indentSpaces = "  "
+
+// Max character length allowed when "EnableLineLimit" is enabled.
+const lineLimit = 80
 
 func getMetaComments(in []byte) map[string]bool {
 	metaComments := map[string]bool{}
@@ -93,11 +99,11 @@ func FormatWithConfig(in []byte, c Config) ([]byte, error) {
 		log.Infoln("Ignored file with 'disable' comment.")
 		return in, nil
 	}
-	nodes, err := parseWithConfig(in, c, metaComments)
+	nodes, err := parseWithConfig(in, &c, metaComments)
 	if err != nil {
 		return nil, err
 	}
-	return out(nodes), nil
+	return out(nodes, c), nil
 }
 
 // Return the byte-positions of each bracket which has the corresponding close on the
@@ -223,16 +229,16 @@ var (
 
 // Parse returns a tree representation of a textproto file.
 func Parse(in []byte) ([]*ast.Node, error) {
-	return ParseWithConfig(in, defConfig)
+	return ParseWithConfig(in, &defConfig)
 }
 
 // ParseWithConfig functions similar to Parse, but allows the user to pass in
 // additional configuration options.
-func ParseWithConfig(in []byte, c Config) ([]*ast.Node, error) {
+func ParseWithConfig(in []byte, c *Config) ([]*ast.Node, error) {
 	return parseWithConfig(in, c, getMetaComments(in))
 }
 
-func parseWithConfig(in []byte, c Config, metaComments map[string]bool) ([]*ast.Node, error) {
+func parseWithConfig(in []byte, c *Config, metaComments map[string]bool) ([]*ast.Node, error) {
 	if metaComments["expand_all_children"] {
 		c.ExpandAllChildren = true
 	}
@@ -254,7 +260,10 @@ func parseWithConfig(in []byte, c Config, metaComments map[string]bool) ([]*ast.
 	if metaComments["allow_triple_quoted_strings"] {
 		c.AllowTripleQuotedStrings = true
 	}
-	p, err := newParser(in, c)
+	if metaComments["enable_line_limit"] {
+		c.EnableLineLimit = true
+	}
+	p, err := newParser(in, *c)
 	if err != nil {
 		return nil, err
 	}
@@ -888,13 +897,13 @@ func DebugFormat(nodes []*ast.Node, depth int) string {
 // Pretty formats the nodes at the given indentation depth (0 = top-level).
 func Pretty(nodes []*ast.Node, depth int) string {
 	var result strings.Builder
-	formatter{&result}.writeNodes(removeDeleted(nodes), depth, false /* isSameLine */)
+	formatter{&result, defConfig}.writeNodes(removeDeleted(nodes), depth, false /* isSameLine */)
 	return result.String()
 }
 
-func out(nodes []*ast.Node) []byte {
+func out(nodes []*ast.Node, c Config) []byte {
 	var result bytes.Buffer
-	formatter{&result}.writeNodes(removeDeleted(nodes), 0, false /* isSameLine */)
+	formatter{&result, c}.writeNodes(removeDeleted(nodes), 0, false /* isSameLine */)
 	return result.Bytes()
 }
 
@@ -919,6 +928,7 @@ type stringWriter interface {
 // formatter accumulates pretty-printed textproto contents into a stringWriter.
 type formatter struct {
 	stringWriter
+	Config
 }
 
 func (f formatter) writeNodes(nodes []*ast.Node, depth int, isSameLine bool) {
@@ -927,7 +937,8 @@ func (f formatter) writeNodes(nodes []*ast.Node, depth int, isSameLine bool) {
 		indent = strings.Repeat(indentSpaces, depth)
 	}
 	for index, nd := range nodes {
-		for _, comment := range nd.PreComments {
+		formattedPreComments := f.formatComments(nd.PreComments, indent)
+		for _, comment := range formattedPreComments {
 			if len(comment) == 0 {
 				if !(depth == 0 && index == 0) {
 					f.WriteString("\n")
@@ -994,7 +1005,8 @@ func (f formatter) writeValues(vals []*ast.Value, indent string) {
 	}
 	for _, v := range vals {
 		f.WriteString(sep)
-		for _, comment := range v.PreComments {
+		formattedPreComments := f.formatComments(v.PreComments, indent)
+		for _, comment := range formattedPreComments {
 			f.WriteString(comment)
 			f.WriteString(sep)
 		}
@@ -1026,7 +1038,8 @@ func (f formatter) writeValuesAsList(nd *ast.Node, vals []*ast.Value, indent str
 	f.WriteString("[")
 
 	for idx, v := range vals {
-		for _, comment := range v.PreComments {
+		formattedPreComments := f.formatComments(v.PreComments, indent)
+		for _, comment := range formattedPreComments {
 			f.WriteString(sep)
 			f.WriteString(comment)
 		}
@@ -1043,7 +1056,8 @@ func (f formatter) writeValuesAsList(nd *ast.Node, vals []*ast.Value, indent str
 			f.WriteString(v.InlineComment)
 		}
 	}
-	for _, comment := range nd.PostValuesComments {
+	formattedPostComments := f.formatComments(nd.PostValuesComments, indent)
+	for _, comment := range formattedPostComments {
 		f.WriteString(sep)
 		f.WriteString(comment)
 	}
@@ -1066,4 +1080,90 @@ func (f formatter) writeChildren(children []*ast.Node, depth int, sameLine bool)
 		f.WriteString(strings.Repeat(indentSpaces, depth-1))
 		f.WriteString("}")
 	}
+}
+
+func (f formatter) formatComments(comments []string, indent string) []string {
+	if f.EnableLineLimit {
+		comments = trimSpaces(comments)
+		return reflowLines(comments, indent, "# ")
+	}
+	return comments
+}
+
+func trimSpaces(lines []string) (trimmedLines []string) {
+	for _, line := range lines {
+		trimmedLines = append(trimmedLines, strings.TrimSpace(line))
+	}
+	return
+}
+
+func reflowLines(lines []string, indent string, linePrefix string) (formatted []string) {
+	for _, line := range lines {
+		// Empty line.
+		if len(line) == 0 {
+			formatted = append(formatted, line)
+			continue
+		}
+
+		// Small line.
+		maxLineLength := lineLimit - len([]rune(indent))
+		if len(line) <= maxLineLength {
+			formatted = append(formatted, line)
+			continue
+		}
+
+		// Long line.
+		currentLine := ""
+		for _, word := range strings.Split(line, " ") {
+			lineLength := len([]rune(currentLine))
+			if lineLength == 0 {
+				currentLine += word
+			} else if currentLine == "#" || lineLength+len([]rune(word))+1 <= maxLineLength {
+				currentLine += " " + word
+			} else {
+				formatted = append(formatted, currentLine)
+				currentLine = ""
+				if len(word) > 0 {
+					currentLine = linePrefix + word
+				}
+			}
+		}
+		// Append last line.
+		if len(currentLine) > 0 {
+			formatted = append(formatted, currentLine)
+		}
+	}
+
+	return
+}
+
+func mergeConsecutiveLines(lines []string, delimiters []string) (mergedLines []string) {
+	endsWithAnyDelimiter := func(line string) bool {
+		for _, delimiter := range delimiters {
+			if strings.HasSuffix(line, delimiter) {
+				return true
+			}
+		}
+		return false
+	}
+	// Group lines in single lines separated by `.` or empty lines.
+	var currentLine string
+	for _, comment := range lines {
+		isEndOfLine := endsWithAnyDelimiter(comment) || len(comment) == 0
+		if len(currentLine) == 0 {
+			currentLine += strings.TrimSpace(comment)
+		} else {
+			currentLine += " " + strings.TrimLeft(comment, " #\"")
+		}
+
+		if isEndOfLine {
+			mergedLines = append(mergedLines, currentLine)
+			currentLine = ""
+		}
+	}
+	// Append the last dangling line.
+	if len(currentLine) > 0 {
+		mergedLines = append(mergedLines, currentLine)
+	}
+	return
 }

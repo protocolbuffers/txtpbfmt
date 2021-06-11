@@ -22,6 +22,8 @@ var (
 	skipAllColons            = flag.Bool("skip_all_colons", false, "Skip colons whenever possible.")
 	allowTripleQuotedStrings = flag.Bool("allow_triple_quoted_strings", false,
 		`Allow Python-style """ or ''' delimited strings in input.`)
+	enableLineLimit = flag.Bool("enable_line_limit", false,
+		`Reflow comments and multi-line strings to stay within 80 character long.`)
 )
 
 const stdinPath = "<stdin>"
@@ -71,6 +73,7 @@ func main() {
 			ExpandAllChildren:        *expandAllChildren,
 			SkipAllColons:            *skipAllColons,
 			AllowTripleQuotedStrings: *allowTripleQuotedStrings,
+			EnableLineLimit:          *enableLineLimit,
 		})
 		if err != nil {
 			errorf("parser.Format for path %v with content %q returned err %v", path, contentForLogging(content), err)
