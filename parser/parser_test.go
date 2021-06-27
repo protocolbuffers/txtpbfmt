@@ -312,6 +312,23 @@ presubmit: {
   }
 }
 `}, {
+		name: "relowed multiline string",
+		in: `# txtpbfmt: enable_line_limit
+name: "Foo"
+description:
+  "Foo is an open-source, scalable ⚖️, and efficient storage (📀) solution for the web. It is based on MySQL—so it supports major MySQL features "
+  "like transactions, indexes, and joins—but it also provides the scalability of NoSQL. As such, Foo offers the best of both the RDBMS and NoSQL "
+  "worlds."
+`,
+		out: `# txtpbfmt: enable_line_limit
+name: "Foo"
+description:
+  "Foo is an open-source, scalable ⚖️, and efficient storage (📀) solution for "
+  "the web. It is based on MySQL—so it supports major MySQL features "
+  "like transactions, indexes, and joins—but it also provides the scalability "
+  "of NoSQL. As such, Foo offers the best of both the RDBMS and NoSQL "
+  "worlds."
+`}, {
 		name: "multiline string",
 		in: `
 name: "Foo"
@@ -869,7 +886,129 @@ presubmit: {
     value: { num: 1 }
   }
 }
-`}}
+`}, {
+		name: "LineLimit in all kinds of comments",
+		in: `# txtpbfmt: enable_line_limit
+# presubmit pre comment  with a very long line that should exced the 80 character limit 1
+# presubmit pre comment  with a very long line that should exced the 80 character limit 😮 (this should be exceded by more than 160 character to force the creation of more than 2 lines) 2
+presubmit: {
+# short review pre comment 1
+  # review pre comment with a very long line that should exced the 80 character limit 1
+# review pre comment  with a very long line that should exced the 80 character limit (this should be exceded by more than 160 character to force the creation of more than 2 lines) 2
+  # short review pre comment 2
+	# presubmit pre comment  with a very long line that should exced the 80 character limit (this should be exceded by more than 160 character to force the creation of more than 2 lines) 2
+  review_notify: "review_notify_value" # review inline comment
+	# short comment for project
+	# comment for project with a very long line that should exced the 80 character limit (this should be exceded by more than 160 character to force the creation of more than 2 lines) 2
+  project: [
+    # short project1 pre comment 1
+		  # project1 pre comment with a very long line that should exced the 80 character limit 1
+    # short project1 pre comment 2
+			# project1 pre comment with a very long line that should exced the 80 character limit (this should be exceded by more than 160 character to force the creation of more than 2 lines) 2
+    "project1", # project1 inline comment
+    # short project2 pre comment 1
+		  # project2 pre comment with a very long line that should exced the 80 character limit 1
+    # short project2 pre comment 2
+			# project2 pre comment with a very long line that should exced the 80 character limit (this should be exceded by more than 160 character to force the creation of more than 2 lines) 2
+    "project2" # project2 inline comment
+		  # after comment with a very long line that should exced the 80 character limit 1
+    # short after comment 1
+			# after comment with a very long line that should exced the 80 character limit (this should be exceded by more than 160 character to force the creation of more than 2 lines) 2
+    # short after comment 2
+  ]
+  # short description pre comment 1
+		  # description pre comment with a very long line that should exced the 80 character limit 1
+  # short description pre comment 2
+			# description pre comment with a very long line that should exced the 80 character limit (this should be exceded by more than 160 character to force the creation of more than 2 lines) 2
+  description:
+	  "line1" # line1 inline comment
+    # short line2 pre comment 1
+		  # line2 pre comment with a very long line that should exced the 80 character limit 1
+    # short line2 pre comment 2
+			# line2 pre comment with a very long line that should exced the 80 character limit (this should be exceded by more than 160 character to force the creation of more than 2 lines) 2
+    "line2" # line2 inline comment
+  # short after comment 1
+		  # after comment with a very long line that should exced the 80 character limit 1
+  # short after comment 2
+			# after comment with a very long line that should exced the 80 character limit (this should be exceded by more than 160 character to force the creation of more than 2 lines) 2
+	name { name: value } # inline comment
+} # inline comment
+`,
+		out: `# txtpbfmt: enable_line_limit
+# presubmit pre comment  with a very long line that should exced the 80
+# character limit 1
+# presubmit pre comment  with a very long line that should exced the 80
+# character limit 😮 (this should be exceded by more than 160 character to force
+# the creation of more than 2 lines) 2
+presubmit: {
+  # short review pre comment 1
+  # review pre comment with a very long line that should exced the 80 character
+  # limit 1
+  # review pre comment  with a very long line that should exced the 80 character
+  # limit (this should be exceded by more than 160 character to force the
+  # creation of more than 2 lines) 2
+  # short review pre comment 2
+  # presubmit pre comment  with a very long line that should exced the 80
+  # character limit (this should be exceded by more than 160 character to force
+  # the creation of more than 2 lines) 2
+  review_notify: "review_notify_value"  # review inline comment
+  # short comment for project
+  # comment for project with a very long line that should exced the 80 character
+  # limit (this should be exceded by more than 160 character to force the
+  # creation of more than 2 lines) 2
+  project: [
+    # short project1 pre comment 1
+    # project1 pre comment with a very long line that should exced the 80
+    # character limit 1
+    # short project1 pre comment 2
+    # project1 pre comment with a very long line that should exced the 80
+    # character limit (this should be exceded by more than 160 character to
+    # force the creation of more than 2 lines) 2
+    "project1",  # project1 inline comment
+    # short project2 pre comment 1
+    # project2 pre comment with a very long line that should exced the 80
+    # character limit 1
+    # short project2 pre comment 2
+    # project2 pre comment with a very long line that should exced the 80
+    # character limit (this should be exceded by more than 160 character to
+    # force the creation of more than 2 lines) 2
+    "project2"  # project2 inline comment
+    # after comment with a very long line that should exced the 80 character
+    # limit 1
+    # short after comment 1
+    # after comment with a very long line that should exced the 80 character
+    # limit (this should be exceded by more than 160 character to force the
+    # creation of more than 2 lines) 2
+    # short after comment 2
+  ]
+  # short description pre comment 1
+  # description pre comment with a very long line that should exced the 80
+  # character limit 1
+  # short description pre comment 2
+  # description pre comment with a very long line that should exced the 80
+  # character limit (this should be exceded by more than 160 character to force
+  # the creation of more than 2 lines) 2
+  description:
+    "line1"  # line1 inline comment
+    # short line2 pre comment 1
+    # line2 pre comment with a very long line that should exced the 80 character
+    # limit 1
+    # short line2 pre comment 2
+    # line2 pre comment with a very long line that should exced the 80 character
+    # limit (this should be exceded by more than 160 character to force the
+    # creation of more than 2 lines) 2
+    "line2"  # line2 inline comment
+  # short after comment 1
+  # after comment with a very long line that should exced the 80 character limit
+  # 1
+  # short after comment 2
+  # after comment with a very long line that should exced the 80 character limit
+  # (this should be exceded by more than 160 character to force the creation of
+  # more than 2 lines) 2
+  name { name: value }  # inline comment
+}  # inline comment
+`},
+	}
 	for _, input := range inputs {
 		out, err := Format([]byte(input.in))
 		if err != nil {
@@ -1171,7 +1310,8 @@ foo: """
 	}
 	// Test ParseWithConfig with inputs.
 	for _, input := range inputs {
-		nodes, err := ParseWithConfig([]byte(input.in), input.config)
+		config := input.config
+		nodes, err := ParseWithConfig([]byte(input.in), &config)
 		if err != nil {
 			t.Errorf("ParseWithConfig[%s] %v with config %v returned err %v", input.name, input.in, input.config, err)
 			continue
