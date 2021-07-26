@@ -200,7 +200,11 @@ func TestFixInline(t *testing.T) {
 		add: `foo { bar: { baz: true } zip: "foo" }`,
 		want: `first { foo { bar: { baz: true } zip: "foo" } }
 `,
-	}}
+	}, {in: `foo {}`, add: ``, want: `foo {}
+`}, {in: `foo {
+}`, add: ``, want: `foo {
+}
+`}}
 	for _, input := range inputs {
 		nodes, err := parser.Parse([]byte(input.in))
 		if err != nil {

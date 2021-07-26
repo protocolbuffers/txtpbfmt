@@ -147,11 +147,16 @@ func (n *Node) Fix() {
 	n.fix()
 }
 
+func isRealPosition(p Position) bool {
+	return p.Byte != 0 || p.Line != 0 || p.Column != 0
+}
+
 func (n *Node) fix() fixData {
+	isEmptyAndWasOriginallyInline := !(isRealPosition(n.Start) && isRealPosition(n.End) && n.End.Line-n.Start.Line > 0)
 	d := fixData{
 		// ChildrenSameLine may be false for cases with no children such as a
 		// value `foo: false`. We don't want these to trigger expansion.
-		inline: n.ChildrenSameLine || len(n.Children) == 0,
+		inline: n.ChildrenSameLine || (len(n.Children) == 0 && isEmptyAndWasOriginallyInline),
 	}
 
 	for _, c := range n.Children {
