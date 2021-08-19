@@ -1157,7 +1157,129 @@ foo: """
   bar
 """
 `,
-	}}
+	}, {
+		name: "WrapStrings",
+		config: Config{
+			WrapStringsAtColumn: 15,
+		},
+		in: `# Comments are not wrapped
+s: "one two three four five"
+`,
+		out: `# Comments are not wrapped
+s:
+  "one two "
+  "three four "
+  "five"
+`,
+	}, {
+		name: "WrapStrings_commentKeptWhenLinesReduced",
+		config: Config{
+			WrapStringsAtColumn: 10,
+		},
+		in: `# Top comment
+s: "one two "
+  "3 4 "  # Line 2 trailing comment
+  "5 "
+  "6"
+  "7 " # Comment on "removed" line
+# Bottom comment
+`,
+		out: `# Top comment
+s:
+  "one "
+  "two 3 "  # Line 2 trailing comment
+  "4 5 "
+  "67 "
+    # Comment on "removed" line
+# Bottom comment
+`,
+	}, {
+		name: "WrapStrings_doNotBreakLongWords",
+		config: Config{
+			WrapStringsAtColumn: 15,
+		},
+		in: `s: "one@two_three-four&five"
+`,
+		out: `s: "one@two_three-four&five"
+`,
+	}, {
+		name: "WrapStrings_wrapHtml",
+		config: Config{
+			WrapStringsAtColumn: 15,
+			WrapHTMLStrings:     true,
+		},
+		in: `s: "one two three <four>"
+`,
+		out: `s:
+  "one two "
+  "three "
+  "<four>"
+`,
+	}, {
+		name: "WrapStrings_doNoWrapHtmlByDefault",
+		config: Config{
+			WrapStringsAtColumn: 15,
+		},
+		in: `s: "one two three <four>"
+`,
+		out: `s: "one two three <four>"
+`,
+	}, {
+		name: "WrapStrings_metaComment",
+		in: `# txtpbfmt: wrap_strings_at_column = 15
+# txtpbfmt: wrap_html_strings
+s: "one two three <four>"
+`,
+		out: `# txtpbfmt: wrap_strings_at_column = 15
+# txtpbfmt: wrap_html_strings
+s:
+  "one two "
+  "three "
+  "<four>"
+`,
+	}, {
+		name: "WrapStrings_doNotWrapNonStrings",
+		config: Config{
+			WrapStringsAtColumn: 15,
+		},
+		in: `e: VERY_LONG_ENUM_VALUE
+i: 12345678901234567890
+r: [1, 2, 3, 4, 5, 6, 7, 8, 9, 0]
+`,
+		out: `e: VERY_LONG_ENUM_VALUE
+i: 12345678901234567890
+r: [1, 2, 3, 4, 5, 6, 7, 8, 9, 0]
+`,
+	}, {
+		name: "WrapStrings_alreadyWrappedStringsAreNotRewrapped",
+		config: Config{
+			WrapStringsAtColumn: 15,
+		},
+		// Total length >15, but each existing line <15, so don't re-wrap 1st line to "I am ".
+		in: `s:
+  "I "
+  "am already "
+  "wrapped"
+`,
+		out: `s:
+  "I "
+  "am already "
+  "wrapped"
+`,
+	}, {
+		name: "WrapStrings_tripleQuotedStringsAreNotWrapped",
+		config: Config{
+			WrapStringsAtColumn:      15,
+			AllowTripleQuotedStrings: true,
+		},
+		in: `s1: """one two three four five"""
+s2: '''six seven eight nine'''
+`,
+		out: `s1: """one two three four five"""
+s2: '''six seven eight nine'''
+`,
+	},
+	}
 	// Test FormatWithConfig with inputs.
 	for _, input := range inputs {
 		got, err := FormatWithConfig([]byte(input.in), input.config)

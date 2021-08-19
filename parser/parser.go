@@ -10,11 +10,15 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
+	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 
 	log "github.com/golang/glog"
+	"google3/third_party/golang/mitchellh/wordwrap/wordwrap"
 	"github.com/protocolbuffers/txtpbfmt/ast"
+	"github.com/protocolbuffers/txtpbfmt/unquote"
 )
 
 // Config can be used to pass additional config parameters to the formatter at
@@ -41,6 +45,14 @@ type Config struct {
 
 	// Permit usage of Python-style """ or ''' delimited strings.
 	AllowTripleQuotedStrings bool
+
+	// Max columns for string field values. If zero, no string wrapping will occur.
+	// Strings that may contain HTML tags will never be wrapped.
+	WrapStringsAtColumn int
+
+	// Whether strings that appear to contain HTML tags should be wrapped
+	// (requires WrapStringsAtColumn to be set).
+	WrapHTMLStrings bool
 }
 
 type parser struct {
@@ -56,6 +68,7 @@ type parser struct {
 }
 
 var defConfig = Config{}
+var tagRegex = regexp.MustCompile(`<.*>`)
 
 const indentSpaces = "  "
 
@@ -254,6 +267,10 @@ func parseWithConfig(in []byte, c Config, metaComments map[string]bool) ([]*ast.
 	if metaComments["allow_triple_quoted_strings"] {
 		c.AllowTripleQuotedStrings = true
 	}
+	if metaComments["wrap_html_strings"] {
+		c.WrapHTMLStrings = true
+	}
+	parseMetaCommentsWithValues(&c, metaComments)
 	p, err := newParser(in, c)
 	if err != nil {
 		return nil, err
@@ -271,8 +288,27 @@ func parseWithConfig(in []byte, c Config, metaComments map[string]bool) ([]*ast.
 	if p.index < p.length {
 		return nil, fmt.Errorf("parser didn't consume all input. Stopped at %s", p.errorContext())
 	}
+	wrapStrings(nodes, 0, c)
 	sortAndFilterNodes(nodes, nodeSortFunction(c.SortFieldsByFieldName, c.SortRepeatedFieldsByContent), c.RemoveDuplicateValuesForRepeatedFields)
 	return nodes, err
+}
+
+func parseMetaCommentsWithValues(c *Config, metaComments map[string]bool) {
+	for mc := range metaComments {
+		if strings.HasPrefix(mc, "wrap_strings_at_column") {
+			s := strings.Split(mc, "=")
+			if len(s) != 2 {
+				log.Errorf("meta comment should be in the form wrap_strings_at_column=<int> (skipping)")
+				continue
+			}
+			var err error
+			c.WrapStringsAtColumn, err = strconv.Atoi(strings.TrimSpace(s[1]))
+			if err != nil {
+				log.Errorf("error parsing wrap_strings_at_column value (skipping): %v", err)
+				c.WrapStringsAtColumn = 0
+			}
+		}
+	}
 }
 
 func newParser(in []byte, c Config) (*parser, error) {
@@ -843,6 +879,98 @@ func sortAndFilterNodes(nodes []*ast.Node, sortFunction func([]*ast.Node), remov
 	if sortFunction != nil {
 		sortFunction(nodes)
 	}
+}
+
+func wrapStrings(nodes []*ast.Node, depth int, c Config) {
+	if c.WrapStringsAtColumn == 0 {
+		return
+	}
+	for _, nd := range nodes {
+		if needsWrapping(nd, depth, c) {
+			wrapLines(nd, depth, c)
+		}
+		wrapStrings(nd.Children, depth+1, c)
+	}
+}
+
+func needsWrapping(nd *ast.Node, depth int, c Config) bool {
+	// Even at depth 0 we have a 2-space indent when the wrapped string is rendered on the line below
+	// the field name.
+	const lengthBuffer = 2
+	maxLength := c.WrapStringsAtColumn - lengthBuffer - (depth * len(indentSpaces))
+
+	if !c.WrapHTMLStrings {
+		for _, v := range nd.Values {
+			if tagRegex.Match([]byte(v.Value)) {
+				return false
+			}
+		}
+	}
+
+	for _, v := range nd.Values {
+		if len(v.Value) >= 3 && (strings.HasPrefix(v.Value, `'''`) || strings.HasPrefix(v.Value, `"""`)) {
+			// Don't wrap triple-quoted strings
+			return false
+		}
+		if len(v.Value) > 0 && v.Value[0] != '\'' && v.Value[0] != '"' {
+			// Only wrap strings
+			return false
+		}
+		if len(v.Value) > maxLength {
+			return true
+		}
+	}
+	return false
+}
+
+// If the Values of this Node constitute a string, and if Config.WrapStringsAtColumn > 0, then wrap
+// the string so each line is within the specified columns. Wraps only the current Node (does not
+// recurse into Children).
+func wrapLines(nd *ast.Node, depth int, c Config) {
+	// This function looks at the unquoted ast.Value.Value string (i.e., with each Value's wrapping
+	// quote chars removed). We need to remove these quotes, since otherwise they'll be re-flowed into
+	// the body of the text.
+	lengthBuffer := 4 // Even at depth 0 we have a 2-space indent and a pair of quotes
+	maxLength := c.WrapStringsAtColumn - lengthBuffer - (depth * len(indentSpaces))
+
+	str, err := unquote.Raw(nd)
+	if err != nil {
+		log.Errorf("skipping string wrapping on node %q (error unquoting string): %v", nd.Name, err)
+		return
+	}
+
+	// Remove one from the max length since a trailing space may be added below.
+	wrappedStr := wordwrap.WrapString(str, uint(maxLength)-1)
+	lines := strings.Split(wrappedStr, "\n")
+	newValues := make([]*ast.Value, 0, len(lines))
+	// The Value objects have more than just the string in them. They also have any leading and
+	// trailing comments. To maintain these comments we recycle the existing Value objects if
+	// possible.
+	var i int
+	var line string
+	for i, line = range lines {
+		var v *ast.Value
+		if len(nd.Values) > i {
+			v = nd.Values[i]
+		} else {
+			v = &ast.Value{}
+		}
+		if i < len(lines)-1 {
+			line = line + " "
+		}
+		v.Value = fmt.Sprintf(`"%s"`, line)
+		newValues = append(newValues, v)
+	}
+
+	for i++; i < len(nd.Values); i++ {
+		// If this executes, then the text was wrapped into less lines of text (less Values) than
+		// previously. We need to keep these Values, so any attached comments are maintained.
+		v := nd.Values[i]
+		v.Value = "" // Clear the old text (it's been wrapped up into previous Values)
+		newValues = append(newValues, v)
+	}
+
+	nd.Values = newValues
 }
 
 func fixQuotes(s string) string {

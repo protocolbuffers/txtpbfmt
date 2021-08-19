@@ -4,40 +4,55 @@ import (
 	"testing"
 
 	"github.com/kylelemons/godebug/diff"
-	"github.com/protocolbuffers/txtpbfmt/parser"
+	"github.com/protocolbuffers/txtpbfmt/ast"
 )
 
 func TestUnquote(t *testing.T) {
 	inputs := []struct {
-		in   string
-		want string
+		in      string
+		want    string
+		wantRaw string
 	}{
 		{
-			in:   `name: "value"`,
-			want: "value",
+			in:      `"value"`,
+			want:    `value`,
+			wantRaw: `value`,
 		},
 		{
-			in:   `name: "foo\'bar"`,
-			want: "foo'bar",
+			in:      `'value'`,
+			want:    `value`,
+			wantRaw: `value`,
+		},
+		{
+			in:      `"foo\'bar"`,
+			want:    `foo'bar`,
+			wantRaw: `foo\'bar`,
+		},
+		{
+			in:      `'foo\"bar'`,
+			want:    `foo"bar`,
+			wantRaw: `foo\"bar`,
 		},
 	}
 	for _, input := range inputs {
-		nodes, err := parser.Parse([]byte(input.in))
+		node := &ast.Node{Name: "name", Values: []*ast.Value{{Value: input.in}}}
+
+		got, err := Unquote(node)
 		if err != nil {
-			t.Errorf("Parse %v returned err %v", input.in, err)
-			continue
-		}
-		if len(nodes) == 0 {
-			t.Errorf("Parse %v returned no nodes", input.in)
-			continue
-		}
-		got, err := Unquote(nodes[0])
-		if err != nil {
-			t.Errorf("Unquote %v returned err %v", input.in, err)
+			t.Errorf("Unquote(%v) returned err %v", input.in, err)
 			continue
 		}
 		if diff := diff.Diff(input.want, got); diff != "" {
-			t.Errorf("Unquote %v returned diff (-want, +got):\n%s", input.in, diff)
+			t.Errorf("Unquote(%v) returned diff (-want, +got):\n%s", input.in, diff)
+		}
+
+		got, err = Raw(node)
+		if err != nil {
+			t.Errorf("unquote.Raw(%v) returned err %v", input.in, err)
+			continue
+		}
+		if diff := diff.Diff(input.wantRaw, got); diff != "" {
+			t.Errorf("unquote.Raw(%v) returned diff (-wantRaw, +got):\n%s", input.in, diff)
 		}
 	}
 }
