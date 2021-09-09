@@ -1157,7 +1157,202 @@ foo: """
   bar
 """
 `,
-	}}
+	}, {
+		name: "WrapStrings",
+		config: Config{
+			WrapStringsAtColumn: 15,
+		},
+		in: `# Comments are not wrapped
+s: "one two three four five"
+`,
+		out: `# Comments are not wrapped
+s:
+  "one two "
+  "three four "
+  "five"
+`,
+	}, {
+		name: "WrapStrings_inlineChildren",
+		config: Config{
+			WrapStringsAtColumn: 14,
+		},
+		in: `root { inner { s: "89 1234" } }
+`,
+		out: `root { inner { s: "89 1234" } }
+`,
+	}, {
+		name: "WrapStrings_exactlyNumColumnsDoesNotWrap",
+		config: Config{
+			WrapStringsAtColumn: 14,
+		},
+		in: `root {
+  inner {
+    s: "89 123"
+  }
+}
+`,
+		out: `root {
+  inner {
+    s: "89 123"
+  }
+}
+`,
+	}, {
+		name: "WrapStrings_numColumnsPlus1Wraps",
+		config: Config{
+			WrapStringsAtColumn: 14,
+		},
+		in: `root {
+  inner {
+    s:
+      "89 123 "
+      "123 56"
+  }
+}
+`,
+		out: `root {
+  inner {
+    s:
+      "89 "
+      "123 "
+      "123 "
+      "56"
+  }
+}
+`,
+	}, {
+		name: "WrapStrings_commentKeptWhenLinesReduced",
+		config: Config{
+			WrapStringsAtColumn: 15,
+		},
+		in: `root {
+  label:
+    # before
+    "56789 next-line"  # trailing
+  label:
+    # inside top
+    "56789 next-line "  # trailing line1
+    "v "
+    "v "
+    "v "
+    "v "
+    # inside in-between
+    "straggler"  # trailing line2
+    # next-node comment
+}
+`,
+		out: `root {
+  label:
+    # before
+    "56789 "  # trailing
+    "next-line"
+  label:
+    # inside top
+    "56789 "  # trailing line1
+    "next-line "
+    "v v v v "
+    "straggler"
+    # inside in-between
+    # trailing line2
+  # next-node comment
+}
+`,
+	}, {
+		name: "WrapStrings_doNotBreakLongWords",
+		config: Config{
+			WrapStringsAtColumn: 15,
+		},
+		in: `s: "one@two_three-four&five"
+`,
+		out: `s: "one@two_three-four&five"
+`,
+	}, {
+		name: "WrapStrings_wrapHtml",
+		config: Config{
+			WrapStringsAtColumn: 15,
+			WrapHTMLStrings:     true,
+		},
+		in: `s: "one two three <four>"
+`,
+		out: `s:
+  "one two "
+  "three "
+  "<four>"
+`,
+	}, {
+		name: "WrapStrings_empty",
+		config: Config{
+			WrapStringsAtColumn: 15,
+		},
+		in: `s: 
+`,
+		out: `s: 
+`,
+	}, {
+		name: "WrapStrings_doNoWrapHtmlByDefault",
+		config: Config{
+			WrapStringsAtColumn: 15,
+		},
+		in: `s: "one two three <four>"
+`,
+		out: `s: "one two three <four>"
+`,
+	}, {
+		name: "WrapStrings_metaComment",
+		in: `# txtpbfmt: wrap_strings_at_column=15
+# txtpbfmt: wrap_html_strings
+s: "one two three <four>"
+`,
+		out: `# txtpbfmt: wrap_strings_at_column=15
+# txtpbfmt: wrap_html_strings
+s:
+  "one two "
+  "three "
+  "<four>"
+`,
+	}, {
+		name: "WrapStrings_doNotWrapNonStrings",
+		config: Config{
+			WrapStringsAtColumn: 15,
+		},
+		in: `e: VERY_LONG_ENUM_VALUE
+i: 12345678901234567890
+r: [1, 2, 3, 4, 5, 6, 7, 8, 9, 0]
+`,
+		out: `e: VERY_LONG_ENUM_VALUE
+i: 12345678901234567890
+r: [1, 2, 3, 4, 5, 6, 7, 8, 9, 0]
+`,
+	}, {
+		name: "WrapStrings_alreadyWrappedStringsAreNotRewrapped",
+		config: Config{
+			WrapStringsAtColumn: 15,
+		},
+		// Total length >15, but each existing line <15, so don't re-wrap 1st line to "I am ".
+		in: `s:
+  "I "
+  "am already "
+  "wrapped"
+`,
+		out: `s:
+  "I "
+  "am already "
+  "wrapped"
+`,
+	}, {
+		name: "WrapStrings_tripleQuotedStringsAreNotWrapped",
+		config: Config{
+			WrapStringsAtColumn:      15,
+			AllowTripleQuotedStrings: true,
+		},
+		in: `s1: """one two three four five"""
+s2: '''six seven eight nine'''
+`,
+		out: `s1: """one two three four five"""
+s2: '''six seven eight nine'''
+`,
+	},
+	}
 	// Test FormatWithConfig with inputs.
 	for _, input := range inputs {
 		got, err := FormatWithConfig([]byte(input.in), input.config)
