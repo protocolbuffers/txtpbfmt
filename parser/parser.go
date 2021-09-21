@@ -566,7 +566,7 @@ func (p *parser) parse(isRoot bool) (result []*ast.Node, endPos ast.Position, er
 			for ld := p.getLoopDetector(); !p.consume(']') && p.index < p.length; {
 				if err := ld.iter(); err != nil {
 					if p.nextInputIs('{') {
-						err = fmt.Errorf("\n\n[{}] notation not supported, see http://b/74558064.\n\nFull error: %s", err)
+						err = fmt.Errorf("\n\n[{}] notation not supported, see http://b/74558064 or https://github.com/protocolbuffers/txtpbfmt/issues/27.\n\nFull error: %s", err)
 					}
 					return nil, ast.Position{}, err
 				}
