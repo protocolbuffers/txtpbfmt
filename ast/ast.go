@@ -67,6 +67,8 @@ type Node struct {
 	//   # Comment
 	// ]
 	PostValuesComments []string
+	// Whether the braces used for the children of this node are curly braces or angle brackets.
+	IsAngleBracket bool
 }
 
 func sortableNodes(ns []*Node) sortable {

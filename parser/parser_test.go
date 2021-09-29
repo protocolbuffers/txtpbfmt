@@ -1351,6 +1351,25 @@ s2: '''six seven eight nine'''
 		out: `s1: """one two three four five"""
 s2: '''six seven eight nine'''
 `,
+	}, {
+		name: "PreserveAngleBrackets",
+		config: Config{
+			PreserveAngleBrackets: true,
+		},
+		in: `foo <
+  a: 1
+>
+foo {
+  b: 2
+}
+`,
+		out: `foo <
+  a: 1
+>
+foo {
+  b: 2
+}
+`,
 	},
 	}
 	// Test FormatWithConfig with inputs.

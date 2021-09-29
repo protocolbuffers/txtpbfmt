@@ -53,6 +53,10 @@ type Config struct {
 	// Whether strings that appear to contain HTML tags should be wrapped
 	// (requires WrapStringsAtColumn to be set).
 	WrapHTMLStrings bool
+
+	// Whether angle brackets used instead of curly braces should be preserved
+	// when outputting a formatted textproto.
+	PreserveAngleBrackets bool
 }
 
 type parser struct {
@@ -545,6 +549,7 @@ func (p *parser) parse(isRoot bool) (result []*ast.Node, endPos ast.Position, er
 				nd.SkipColon = true
 			}
 			nd.ChildrenSameLine = p.bracketSameLine[p.index-1]
+			nd.IsAngleBracket = p.config.PreserveAngleBrackets && p.in[p.index-1] == '<'
 			// Recursive call to parse child nodes.
 			nodes, lastPos, err := p.parse( /*isRoot=*/ false)
 			if err != nil {
@@ -1107,7 +1112,7 @@ func (f formatter) writeNodes(nodes []*ast.Node, depth int, isSameLine bool) {
 			f.writeValues(nd, nd.Values, indent+indentSpaces)
 		}
 		if nd.Children != nil { // Also for 0 Children.
-			f.writeChildren(nd.Children, depth+1, (isSameLine || nd.ChildrenSameLine))
+			f.writeChildren(nd.Children, depth+1, (isSameLine || nd.ChildrenSameLine), nd.IsAngleBracket)
 		}
 		if (nd.Children != nil || nd.ValuesAsList) && len(nd.ClosingBraceComment) > 0 {
 			f.WriteString(indentSpaces)
@@ -1193,18 +1198,24 @@ func (f formatter) writeValuesAsList(nd *ast.Node, vals []*ast.Value, indent str
 }
 
 // writeChildren writes the child nodes. The result always ends with a closing brace.
-func (f formatter) writeChildren(children []*ast.Node, depth int, sameLine bool) {
+func (f formatter) writeChildren(children []*ast.Node, depth int, sameLine, isAngleBracket bool) {
+	openBrace := "{"
+	closeBrace := "}"
+	if isAngleBracket {
+		openBrace = "<"
+		closeBrace = ">"
+	}
 	switch {
 	case sameLine && len(children) == 0:
-		f.WriteString("{}")
+		f.WriteString(openBrace + closeBrace)
 	case sameLine:
-		f.WriteString("{")
+		f.WriteString(openBrace)
 		f.writeNodes(children, depth, sameLine)
-		f.WriteString(" }")
+		f.WriteString(" " + closeBrace)
 	default:
-		f.WriteString("{\n")
+		f.WriteString(openBrace + "\n")
 		f.writeNodes(children, depth, sameLine)
 		f.WriteString(strings.Repeat(indentSpaces, depth-1))
-		f.WriteString("}")
+		f.WriteString(closeBrace)
 	}
 }
