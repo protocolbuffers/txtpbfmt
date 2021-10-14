@@ -57,6 +57,9 @@ type Config struct {
 	// Whether angle brackets used instead of curly braces should be preserved
 	// when outputting a formatted textproto.
 	PreserveAngleBrackets bool
+
+	// Use single quotes around strings that contain double but not single quotes.
+	SmartQuotes bool
 }
 
 type parser struct {
@@ -273,6 +276,9 @@ func parseWithConfig(in []byte, c Config, metaComments map[string]bool) ([]*ast.
 	}
 	if metaComments["wrap_html_strings"] {
 		c.WrapHTMLStrings = true
+	}
+	if metaComments["smartquotes"] {
+		c.SmartQuotes = true
 	}
 	setMetaCommentIntValue("wrap_strings_at_column", metaComments, &c.WrapStringsAtColumn)
 	p, err := newParser(in, c)
@@ -749,7 +755,12 @@ func (p *parser) readValues() ([]*ast.Value, error) {
 				return nil, fmt.Errorf("found literal (unescaped) new line in string at %s", p.errorContext())
 			}
 			if p.in[i] == p.in[stringBegin] {
-				vl := fixQuotes(p.advance(i))
+				var vl string
+				if p.config.SmartQuotes {
+					vl = smartQuotes(p.advance(i))
+				} else {
+					vl = fixQuotes(p.advance(i))
+				}
 				_ = p.advance(i + 1) // Skip the quote.
 				values = append(values, p.populateValue(vl, preComments))
 
@@ -1001,6 +1012,39 @@ func fixQuotes(s string) string {
 	}
 	res = append(res, '"')
 	return string(res)
+}
+
+func unescapeQuotes(s string) string {
+	res := make([]byte, 0, len(s))
+	for i := 0; i < len(s); i++ {
+		// If we hit an escape sequence...
+		if s[i] == '\\' {
+			// ... keep the backslash unless it's in front of a quote ...
+			if i == len(s)-1 || (s[i+1] != '"' && s[i+1] != '\'') {
+				res = append(res, '\\')
+			}
+			// ... then point at the escaped character so it is output verbatim below.
+			// Doing this within the loop (without "continue") ensures correct handling
+			// of escaped backslashes.
+			i++
+		}
+		if i < len(s) {
+			res = append(res, s[i])
+		}
+	}
+	return string(res)
+}
+
+func smartQuotes(s string) string {
+	s = unescapeQuotes(s)
+	if strings.Contains(s, "\"") && !strings.Contains(s, "'") {
+		// If we hit this branch, the string doesn't contain any single quotes, and
+		// is being wrapped in single quotes, so no escaping is needed.
+		return "'" + s + "'"
+	}
+	// fixQuotes will wrap the string in double quotes, but will escape any
+	// double quotes that appear within the string.
+	return fixQuotes(s)
 }
 
 // DebugFormat returns a textual representation of the specified nodes for

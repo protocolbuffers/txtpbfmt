@@ -2,6 +2,7 @@
 package parser
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -121,6 +122,29 @@ p        {}`,
 	}, {
 		name: "double quote",
 		in:   `""`,
+	}, {
+		name: "two single quotes",
+		in:   `''`,
+	}, {
+		name: "single single quote",
+		in:   `'`,
+		err:  true,
+	}, {
+		name: "naked single quote in double quotes",
+		in:   `"'"`,
+	}, {
+		name: "escaped single quote in double quotes",
+		in:   `"\'"`,
+	}, {
+		name: "invalid naked single quote in single quotes",
+		in:   `'''`,
+		err:  true,
+	}, {
+		name: "escaped single quote in single quotes",
+		in:   `'\''`,
+	}, {
+		name: "two single quotes",
+		in:   `''`,
 	}, {
 		name:     "triple quoted backlash",
 		in:       `"""\"""`,
@@ -1370,6 +1394,32 @@ foo {
   b: 2
 }
 `,
+	}, {
+		name: "legacy quote behavior",
+		config: Config{
+			SmartQuotes: false,
+		},
+		in: `foo: "\"bar\""`,
+		out: `foo: "\"bar\""
+`,
+	}, {
+		name: "smart quotes",
+		config: Config{
+			SmartQuotes: true,
+		},
+		in: `foo: "\"bar\""`,
+		out: `foo: '"bar"'
+`,
+	}, {
+		name: "smart quotes via meta comment",
+		config: Config{
+			SmartQuotes: false,
+		},
+		in: `# txtpbfmt: smartquotes
+foo: "\"bar\""`,
+		out: `# txtpbfmt: smartquotes
+foo: '"bar"'
+`,
 	},
 	}
 	// Test FormatWithConfig with inputs.
@@ -1425,6 +1475,77 @@ func TestDebugFormat(t *testing.T) {
 		got := DebugFormat(nodes, 0 /* depth */)
 		if diff := diff.Diff(input.want, got); diff != "" {
 			t.Errorf("DebugFormat %v returned diff (-want, +got):\n%s", input.in, diff)
+		}
+	}
+}
+
+func TestUnescapeQuotes(t *testing.T) {
+	inputs := []struct {
+		in   string
+		want string
+	}{
+		{in: ``, want: ``},
+		{in: `"`, want: `"`},
+		{in: `\`, want: `\`},
+		{in: `\\`, want: `\\`},
+		{in: `\\\`, want: `\\\`},
+		{in: `"\"`, want: `""`},
+		{in: `"\\"`, want: `"\\"`},
+		{in: `"\\\"`, want: `"\\"`},
+		{in: `'\'`, want: `''`},
+		{in: `'\\'`, want: `'\\'`},
+		{in: `'\\\'`, want: `'\\'`},
+		{in: `'\n'`, want: `'\n'`},
+		{in: `\'\"\\\n\"\'`, want: `'"\\\n"'`},
+	}
+	for _, input := range inputs {
+		got := unescapeQuotes(input.in)
+		if got != input.want {
+			t.Errorf("unescapeQuotes(`%s`): got `%s`, want `%s`", input.in, got, input.want)
+		}
+	}
+}
+
+func TestSmartQuotes(t *testing.T) {
+	inputs := []struct {
+		in         string
+		wantLegacy string
+		wantSmart  string
+	}{
+		{`1`, `1`, `1`},
+		{`""`, `""`, `""`},
+		{`''`, `""`, `""`},
+		{`"a"`, `"a"`, `"a"`},
+		{`'a'`, `"a"`, `"a"`},
+		{`'a"b'`, `"a\"b"`, `'a"b'`},
+		{`"a\"b"`, `"a\"b"`, `'a"b'`},
+		{`'a\'b'`, `"a\'b"`, `"a'b"`},
+		{`'a"b\'c'`, `"a\"b\'c"`, `"a\"b'c"`},
+		{`"a\"b'c"`, `"a\"b'c"`, `"a\"b'c"`},
+		{`'a\"b\'c'`, `"a\"b\'c"`, `"a\"b'c"`},
+		{`"a\"b\'c"`, `"a\"b\'c"`, `"a\"b'c"`},
+		{`"'\\\'"`, `"'\\\'"`, `"'\\'"`},
+	}
+	for _, tc := range inputs {
+		in := `foo: ` + tc.in
+		name := fmt.Sprintf("Format [ %s ] with legacy quote behavior", tc.in)
+		want := `foo: ` + tc.wantLegacy
+		gotRaw, err := FormatWithConfig([]byte(in), Config{SmartQuotes: false})
+		got := strings.TrimSpace(string(gotRaw))
+		if err != nil {
+			t.Errorf("%s: got error: %s, want no error and [ %s ]", name, err, want)
+		} else if got != want {
+			t.Errorf("%s: got [ %s ], want [ %s ]", name, got, want)
+		}
+
+		name = fmt.Sprintf("Format [ %s ] with smart quote behavior", tc.in)
+		want = `foo: ` + tc.wantSmart
+		gotRaw, err = FormatWithConfig([]byte(`foo: `+tc.in), Config{SmartQuotes: true})
+		got = strings.TrimSpace(string(gotRaw))
+		if err != nil {
+			t.Errorf("%s: got error: %s, want no error and [ %s ]", name, err, want)
+		} else if got != want {
+			t.Errorf("%s: got [ %s ], want [ %s ]", name, got, want)
 		}
 	}
 }
