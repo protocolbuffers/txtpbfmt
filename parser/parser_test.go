@@ -140,6 +140,20 @@ p        {}`,
 		in:   `'''`,
 		err:  true,
 	}, {
+		name: "invalid standalone angled bracket",
+		in:   `>`,
+		err:  true,
+	}, {
+		name: "invalid standalone angled bracket outside template",
+		in:   `foo > bar`,
+		err:  true,
+	}, {
+		name: "valid standalone angled bracket inside template",
+		in:   `% foo >= bar %`,
+	}, {
+		name: "valid angled bracket inside template",
+		in:   `%if (value > 0)%`,
+	}, {
 		name: "escaped single quote in single quotes",
 		in:   `'\''`,
 	}, {
@@ -668,6 +682,96 @@ check_tests: {
 		out: `[ext]: {
   offset: %offset%
   %if (offset < 0)%
+  %for i : offset_count%
+  # directive comment
+  %if enabled%
+
+  # innermost comment
+  # innermost comment
+
+  offset_type: PACKETS
+  %end%
+  %end%
+  %end%
+
+  # my comment
+  # my comment
+
+  %for (leading_timestamps : leading_timestamps_array)%
+  leading_timestamps: %leading_timestamps.timestamp%
+  %end%
+}
+`}, {
+		name: "template directive with >",
+		in: `[ext]: {
+    offset: %offset%
+    %if (offset > 0)% %for i : offset_count%
+    # directive comment
+		%if enabled%
+
+    # innermost comment
+    # innermost comment
+
+    offset_type: PACKETS
+		%end%
+    %end% %end%
+
+    # my comment
+    # my comment
+
+    %for (leading_timestamps : leading_timestamps_array)%
+    leading_timestamps: %leading_timestamps.timestamp%
+    %end%
+    }
+`,
+		out: `[ext]: {
+  offset: %offset%
+  %if (offset > 0)%
+  %for i : offset_count%
+  # directive comment
+  %if enabled%
+
+  # innermost comment
+  # innermost comment
+
+  offset_type: PACKETS
+  %end%
+  %end%
+  %end%
+
+  # my comment
+  # my comment
+
+  %for (leading_timestamps : leading_timestamps_array)%
+  leading_timestamps: %leading_timestamps.timestamp%
+  %end%
+}
+`}, {
+		name: "template directive with >=",
+		in: `[ext]: {
+    offset: %offset%
+    %if (offset >= 0)% %for i : offset_count%
+    # directive comment
+		%if enabled%
+
+    # innermost comment
+    # innermost comment
+
+    offset_type: PACKETS
+		%end%
+    %end% %end%
+
+    # my comment
+    # my comment
+
+    %for (leading_timestamps : leading_timestamps_array)%
+    leading_timestamps: %leading_timestamps.timestamp%
+    %end%
+    }
+`,
+		out: `[ext]: {
+  offset: %offset%
+  %if (offset >= 0)%
   %for i : offset_count%
   # directive comment
   %if enabled%
