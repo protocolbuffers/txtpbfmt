@@ -132,6 +132,7 @@ func sameLineBrackets(in []byte, allowTripleQuotedStrings bool) (map[int]bool, e
 	res := map[int]bool{}
 	insideComment := false
 	insideString := false
+	insideTemplate := false
 	insideTripleQuotedString := false
 	var stringDelimiter string
 	isEscapedChar := false
@@ -141,12 +142,12 @@ func sameLineBrackets(in []byte, allowTripleQuotedStrings bool) (map[int]bool, e
 			line++
 			insideComment = false
 		case '{', '<':
-			if insideComment || insideString {
+			if insideComment || insideString || insideTemplate {
 				continue
 			}
 			open = append(open, bracket{index: i, line: line})
 		case '}', '>':
-			if insideComment || insideString {
+			if insideComment || insideString || insideTemplate {
 				continue
 			}
 			if len(open) == 0 {
@@ -163,6 +164,15 @@ func sameLineBrackets(in []byte, allowTripleQuotedStrings bool) (map[int]bool, e
 				continue
 			}
 			insideComment = true
+		case '%':
+			if insideComment || insideString {
+				continue
+			}
+			if insideTemplate {
+				insideTemplate = false
+			} else {
+				insideTemplate = true
+			}
 		case '"', '\'':
 			if insideComment {
 				continue

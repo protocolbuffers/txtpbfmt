@@ -140,6 +140,48 @@ p        {}`,
 		in:   `'''`,
 		err:  true,
 	}, {
+		name: "invalid standalone angled bracket",
+		in:   `>`,
+		err:  true,
+	}, {
+		name: "invalid angled bracket outside template",
+		in:   `foo > bar`,
+		err:  true,
+	}, {
+		name: "valid angled bracket inside string",
+		in:   `"foo > bar"`,
+	}, {
+		name: "valid angled bracket inside template",
+		in:   `% foo >= bar %`,
+	}, {
+		name: "valid angled bracket inside comment",
+		in:   `# foo >= bar`,
+	}, {
+		name: "valid angled bracket inside if condition in template",
+		in:   `%if (value > 0)%`,
+	}, {
+		name: "valid templated arg inside comment",
+		in:   `# foo: %bar%`,
+	}, {
+		name: "valid templated arg inside string",
+		in:   `foo: "%bar%"`,
+	}, {
+		name: "% delimiter inside commented lines",
+		in: `
+					# comment %
+					{
+						# comment %
+					}
+					`,
+	}, {
+		name: "% delimiter inside strings",
+		in: `
+					foo: "%"
+					{
+						bar: "%"
+					}
+					`,
+	}, {
 		name: "escaped single quote in single quotes",
 		in:   `'\''`,
 	}, {
@@ -668,6 +710,96 @@ check_tests: {
 		out: `[ext]: {
   offset: %offset%
   %if (offset < 0)%
+  %for i : offset_count%
+  # directive comment
+  %if enabled%
+
+  # innermost comment
+  # innermost comment
+
+  offset_type: PACKETS
+  %end%
+  %end%
+  %end%
+
+  # my comment
+  # my comment
+
+  %for (leading_timestamps : leading_timestamps_array)%
+  leading_timestamps: %leading_timestamps.timestamp%
+  %end%
+}
+`}, {
+		name: "template directive with >",
+		in: `[ext]: {
+    offset: %offset%
+    %if (offset > 0)% %for i : offset_count%
+    # directive comment
+		%if enabled%
+
+    # innermost comment
+    # innermost comment
+
+    offset_type: PACKETS
+		%end%
+    %end% %end%
+
+    # my comment
+    # my comment
+
+    %for (leading_timestamps : leading_timestamps_array)%
+    leading_timestamps: %leading_timestamps.timestamp%
+    %end%
+    }
+`,
+		out: `[ext]: {
+  offset: %offset%
+  %if (offset > 0)%
+  %for i : offset_count%
+  # directive comment
+  %if enabled%
+
+  # innermost comment
+  # innermost comment
+
+  offset_type: PACKETS
+  %end%
+  %end%
+  %end%
+
+  # my comment
+  # my comment
+
+  %for (leading_timestamps : leading_timestamps_array)%
+  leading_timestamps: %leading_timestamps.timestamp%
+  %end%
+}
+`}, {
+		name: "template directive with >=",
+		in: `[ext]: {
+    offset: %offset%
+    %if (offset >= 0)% %for i : offset_count%
+    # directive comment
+		%if enabled%
+
+    # innermost comment
+    # innermost comment
+
+    offset_type: PACKETS
+		%end%
+    %end% %end%
+
+    # my comment
+    # my comment
+
+    %for (leading_timestamps : leading_timestamps_array)%
+    leading_timestamps: %leading_timestamps.timestamp%
+    %end%
+    }
+`,
+		out: `[ext]: {
+  offset: %offset%
+  %if (offset >= 0)%
   %for i : offset_count%
   # directive comment
   %if enabled%
