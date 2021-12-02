@@ -88,6 +88,7 @@ func main() {
 			continue
 		}
 		if *dryRun {
+			fmt.Println(string(newContent))
 			continue
 		}
 		if err := ioutil.WriteFile(path, newContent, 0664); err != nil {
