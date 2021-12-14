@@ -483,7 +483,7 @@ func (p *parser) parse(isRoot bool) (result []*ast.Node, endPos ast.Position, er
 			comments = append(comments, c...)
 		}
 
-		if endPos := p.position(); p.consume('}') || p.consume('>') {
+		if endPos := p.position(); p.consume('}') || p.consume('>') || p.consume(']') {
 			// Handle comments after last child.
 
 			if len(comments) > 0 {
@@ -576,53 +576,68 @@ func (p *parser) parse(isRoot bool) (result []*ast.Node, endPos ast.Position, er
 
 			nd.ClosingBraceComment = p.readInlineComment()
 		} else if p.consume('[') {
-			// Handle list of values.
-
-			nd.ValuesAsList = true // We found values in list - keep it as list.
 			openBracketLine := p.line
 
 			// Skip separator.
-			preComments, _ := p.skipWhiteSpaceAndReadComments(true /* multiLine */)
+			preComments := p.readContinuousBlocksOfComments()
 
-			for ld := p.getLoopDetector(); !p.consume(']') && p.index < p.length; {
-				if err := ld.iter(); err != nil {
-					if p.nextInputIs('{') {
-						err = fmt.Errorf("\n\n[{}] notation not supported, see http://b/74558064 or https://github.com/protocolbuffers/txtpbfmt/issues/27.\n\nFull error: %s", err)
-					}
-					return nil, ast.Position{}, err
-				}
+			if p.nextInputIs('{') {
+				// Handle list of nodes.
+				nd.ChildrenAsList = true
 
-				// Read each value in the list.
-				vals, err := p.readValues()
+				nodes, lastPos, err := p.parse( /*isRoot=*/ true)
 				if err != nil {
 					return nil, ast.Position{}, err
 				}
-				if len(vals) != 1 {
-					return nil, ast.Position{}, fmt.Errorf("multiple-string value not supported (%v). Please add comma explcitily, see http://b/162070952", vals)
-				}
-				vals[0].PreComments = append(vals[0].PreComments, preComments...)
-
-				// Skip separator.
-				_, _ = p.skipWhiteSpaceAndReadComments(false /* multiLine */)
-				if p.consume(',') {
-					vals[0].InlineComment = p.readInlineComment()
+				if len(nodes) > 0 {
+					nodes[0].PreComments = preComments
 				}
 
-				nd.Values = append(nd.Values, vals...)
+				nd.Children = nodes
+				nd.End = lastPos
+				nd.ClosingBraceComment = p.readInlineComment()
+				nd.ChildrenSameLine = openBracketLine == p.line
+			} else {
+				// Handle list of values.
+				nd.ValuesAsList = true // We found values in list - keep it as list.
 
-				preComments, _ = p.skipWhiteSpaceAndReadComments(true /* multiLine */)
+				for ld := p.getLoopDetector(); !p.consume(']') && p.index < p.length; {
+					if err := ld.iter(); err != nil {
+						return nil, ast.Position{}, err
+					}
+
+					// Read each value in the list.
+					vals, err := p.readValues()
+					if err != nil {
+						return nil, ast.Position{}, err
+					}
+					if len(vals) != 1 {
+						return nil, ast.Position{}, fmt.Errorf("multiple-string value not supported (%v). Please add comma explcitily, see http://b/162070952", vals)
+					}
+					vals[0].PreComments = append(vals[0].PreComments, preComments...)
+
+					// Skip separator.
+					_, _ = p.skipWhiteSpaceAndReadComments(false /* multiLine */)
+					if p.consume(',') {
+						vals[0].InlineComment = p.readInlineComment()
+					}
+
+					nd.Values = append(nd.Values, vals...)
+
+					preComments, _ = p.skipWhiteSpaceAndReadComments(true /* multiLine */)
+				}
+				nd.ChildrenSameLine = openBracketLine == p.line
+
+				res = append(res, nd)
+
+				// Handle comments after last line (or for empty list)
+				nd.PostValuesComments = preComments
+				nd.ClosingBraceComment = p.readInlineComment()
+
+				_ = p.consume(';') // Ignore optional ';'.
+				_ = p.consume(',') // Ignore optional ','.
+				continue
 			}
-			nd.ChildrenSameLine = (openBracketLine == p.line)
-
-			res = append(res, nd)
-
-			// Handle comments after last line (or for empty list)
-			nd.PostValuesComments = preComments
-			nd.ClosingBraceComment = p.readInlineComment()
-
-			_ = p.consume(';') // Ignore optional ';'.
-			_ = p.consume(',') // Ignore optional ','.
-			continue
 		} else {
 			// Rewind comments.
 			p.index = int(previousPos.Byte)
@@ -664,6 +679,22 @@ func removeBlanks(in string) string {
 		s = bytes.Replace(s, []byte{b}, nil, -1)
 	}
 	return string(s)
+}
+
+func (p *parser) readContinuousBlocksOfComments() []string {
+	var preComments []string
+	for {
+		comments, blankLines := p.skipWhiteSpaceAndReadComments(true)
+		if len(comments) == 0 {
+			break
+		}
+		if blankLines > 0 && len(preComments) > 0 {
+			comments = append([]string{""}, comments...)
+		}
+		preComments = append(preComments, comments...)
+	}
+
+	return preComments
 }
 
 // skipWhiteSpaceAndReadComments has multiple cases:
@@ -1084,13 +1115,13 @@ func DebugFormat(nodes []*ast.Node, depth int) string {
 // Pretty formats the nodes at the given indentation depth (0 = top-level).
 func Pretty(nodes []*ast.Node, depth int) string {
 	var result strings.Builder
-	formatter{&result}.writeNodes(removeDeleted(nodes), depth, false /* isSameLine */)
+	formatter{&result}.writeNodes(removeDeleted(nodes), depth, false /* isSameLine */, false /* asListItems */)
 	return result.String()
 }
 
 func out(nodes []*ast.Node) []byte {
 	var result bytes.Buffer
-	formatter{&result}.writeNodes(removeDeleted(nodes), 0, false /* isSameLine */)
+	formatter{&result}.writeNodes(removeDeleted(nodes), 0, false /* isSameLine */, false /* asListItems */)
 	return result.Bytes()
 }
 
@@ -1117,11 +1148,22 @@ type formatter struct {
 	stringWriter
 }
 
-func (f formatter) writeNodes(nodes []*ast.Node, depth int, isSameLine bool) {
+func (f formatter) writeNodes(nodes []*ast.Node, depth int, isSameLine, asListItems bool) {
 	indent := " "
 	if !isSameLine {
 		indent = strings.Repeat(indentSpaces, depth)
 	}
+
+	lastNonCommentIndex := 0
+	if asListItems {
+		for i := len(nodes) - 1; i >= 0; i-- {
+			if !nodes[i].IsCommentOnly() {
+				lastNonCommentIndex = i
+				break
+			}
+		}
+	}
+
 	for index, nd := range nodes {
 		for _, comment := range nd.PreComments {
 			if len(comment) == 0 {
@@ -1166,8 +1208,17 @@ func (f formatter) writeNodes(nodes []*ast.Node, depth int, isSameLine bool) {
 			f.writeValues(nd, nd.Values, indent+indentSpaces)
 		}
 		if nd.Children != nil { // Also for 0 Children.
-			f.writeChildren(nd.Children, depth+1, (isSameLine || nd.ChildrenSameLine), nd.IsAngleBracket)
+			if nd.ChildrenAsList {
+				f.writeChildrenAsListItems(nd.Children, depth+1, isSameLine || nd.ChildrenSameLine)
+			} else {
+				f.writeChildren(nd.Children, depth+1, isSameLine || nd.ChildrenSameLine, nd.IsAngleBracket)
+			}
 		}
+
+		if asListItems && index < lastNonCommentIndex {
+			f.WriteString(",")
+		}
+
 		if (nd.Children != nil || nd.ValuesAsList) && len(nd.ClosingBraceComment) > 0 {
 			f.WriteString(indentSpaces)
 			f.WriteString(nd.ClosingBraceComment)
@@ -1264,11 +1315,30 @@ func (f formatter) writeChildren(children []*ast.Node, depth int, sameLine, isAn
 		f.WriteString(openBrace + closeBrace)
 	case sameLine:
 		f.WriteString(openBrace)
-		f.writeNodes(children, depth, sameLine)
+		f.writeNodes(children, depth, sameLine, false /* asListItems */)
 		f.WriteString(" " + closeBrace)
 	default:
 		f.WriteString(openBrace + "\n")
-		f.writeNodes(children, depth, sameLine)
+		f.writeNodes(children, depth, sameLine, false /* asListItems */)
+		f.WriteString(strings.Repeat(indentSpaces, depth-1))
+		f.WriteString(closeBrace)
+	}
+}
+
+// writeChildrenAsListItems writes the child nodes as list items.
+func (f formatter) writeChildrenAsListItems(children []*ast.Node, depth int, sameLine bool) {
+	openBrace := "["
+	closeBrace := "]"
+	switch {
+	case sameLine && len(children) == 0:
+		f.WriteString(openBrace + closeBrace)
+	case sameLine:
+		f.WriteString(openBrace)
+		f.writeNodes(children, depth, sameLine, true /* asListItems */)
+		f.WriteString(" " + closeBrace)
+	default:
+		f.WriteString(openBrace + "\n")
+		f.writeNodes(children, depth, sameLine, true /* asListItems */)
 		f.WriteString(strings.Repeat(indentSpaces, depth-1))
 		f.WriteString(closeBrace)
 	}

@@ -59,6 +59,8 @@ type Node struct {
 	End Position
 	// Keep values in list (e.g "list: [1, 2]").
 	ValuesAsList bool
+	// Keep children in list (e.g "list: [ { value: 1 }, { value: 2 } ]").
+	ChildrenAsList bool
 	// Lines of comments appearing after last value inside list.
 	// Each non-empty line starts with a # and does not contain the trailing newline.
 	// e.g

@@ -20,10 +20,6 @@ func TestError(t *testing.T) {
 		in:  "multy_string_list: ['a' 'b', 'c']",
 		err: "multiple-string value",
 	}, {
-		in: `child_list_notation: [
-		  {`,
-		err: "[{}]",
-	}, {
 		in: `mapping {{
   my_proto_field: "foo"
 }}`, err: "Failed to find a FieldName",
@@ -377,6 +373,152 @@ presubmit: {
     action: [MAIL, REVIEW, SUBMIT]
   }
 }
+`}, {
+		name: "list notation with [{}] with lots of comments",
+		in: `# list comment
+list: [
+  # first comment
+  {},  # first inline comment
+  # second comment
+  {} # second inline comment
+  # last comment
+] # list inline comment
+# other comment`,
+		out: `# list comment
+list: [
+  # first comment
+  {},  # first inline comment
+  # second comment
+  {}  # second inline comment
+  # last comment
+]  # list inline comment
+# other comment
+`}, {
+		name: "list notation with [{}] with inline children",
+		in: `children: [           { name: "node_2.1" }           ,       {         name: "node_2.2"          },{name:"node_2.3"}]
+`,
+		out: `children: [ { name: "node_2.1" }, { name: "node_2.2" }, { name: "node_2.3" } ]
+`}, {
+		name: "list notation with [{}] without comma separators between multiline children",
+		in: `children: [
+  {
+    name: "node_2.1"
+  }
+  {
+    name: "node_2.2"
+  }
+  {
+    name: "node_2.3"
+  }
+]
+`,
+		out: `children: [
+  {
+    name: "node_2.1"
+  },
+  {
+    name: "node_2.2"
+  },
+  {
+    name: "node_2.3"
+  }
+]
+`}, {
+		name: "list notation with [{}]",
+		in: `children: [
+
+
+  # Line 1
+
+
+
+  # Line 2
+
+
+
+  # Line 3
+
+
+
+  {
+    name: "node_1"
+  },
+  {
+
+
+    name: "node_2"
+    children: [  {            name:             "node_2.1" },         {name:"node_2.2"},{name:"node_2.3"        }]
+
+
+  },
+  {
+    name: "node_3"
+children    : [
+
+      {
+        name: "node_3.1"
+      }, # after-node comment.
+
+
+
+  # Line 1
+
+
+
+  # Line 2
+
+
+
+      {
+        name: "node_3.2",
+      },
+
+
+
+
+      {
+        name: "node_3.3"
+      }
+    ]
+  }
+]
+`,
+		out: `children: [
+  # Line 1
+
+  # Line 2
+
+  # Line 3
+  {
+    name: "node_1"
+  },
+  {
+
+    name: "node_2"
+    children: [ { name: "node_2.1" }, { name: "node_2.2" }, { name: "node_2.3" } ]
+
+  },
+  {
+    name: "node_3"
+    children: [
+      {
+        name: "node_3.1"
+      },  # after-node comment.
+
+      # Line 1
+
+      # Line 2
+
+      {
+        name: "node_3.2"
+      },
+
+      {
+        name: "node_3.3"
+      }
+    ]
+  }
+]
 `}, {
 		name: "multiline string",
 		in: `
