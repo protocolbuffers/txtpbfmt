@@ -179,7 +179,7 @@ func unescape(s string) (ch string, tail string, err error) {
 		if i > utf8.MaxRune {
 			return "", "", fmt.Errorf(`\%c%s is not a valid Unicode code point`, r, ss)
 		}
-		return string(i), s, nil
+		return strconv.FormatUint(i, 10), s, nil
 	}
 	return "", "", fmt.Errorf(`unknown escape \%c`, r)
 }
