@@ -309,7 +309,7 @@ func parseWithConfig(in []byte, c Config, metaComments map[string]bool) ([]*ast.
 		return nil, fmt.Errorf("parser didn't consume all input. Stopped at %s", p.errorContext())
 	}
 	wrapStrings(nodes, 0, c)
-	sortAndFilterNodes(nodes, nodeSortFunction(c.SortFieldsByFieldName, c.SortRepeatedFieldsByContent), c.RemoveDuplicateValuesForRepeatedFields)
+	sortAndFilterNodes(nodes, c)
 	return nodes, err
 }
 
@@ -914,7 +914,7 @@ func (p *parser) readTemplate() string {
 	return p.advance(i)
 }
 
-func sortAndFilterNodes(nodes []*ast.Node, sortFunction func([]*ast.Node), removeDuplicates bool) {
+func sortAndFilterNodes(nodes []*ast.Node, c Config) {
 	if len(nodes) == 0 {
 		return
 	}
@@ -922,7 +922,7 @@ func sortAndFilterNodes(nodes []*ast.Node, sortFunction func([]*ast.Node), remov
 		name, value string
 	}
 	var seen map[nameAndValue]bool
-	if removeDuplicates {
+	if c.RemoveDuplicateValuesForRepeatedFields {
 		seen = make(map[nameAndValue]bool)
 	}
 	for _, nd := range nodes {
@@ -935,11 +935,16 @@ func sortAndFilterNodes(nodes []*ast.Node, sortFunction func([]*ast.Node), remov
 				seen[key] = true
 			}
 		}
-		sortAndFilterNodes(nd.Children, sortFunction, removeDuplicates)
+		sortAndFilterNodes(nd.Children, c)
 	}
-	if sortFunction != nil {
-		sortFunction(nodes)
+
+	sn := sortableByNameAndValue{
+		sortable: sortable{
+			config: c,
+			nodes:  nodes,
+		},
 	}
+	sn.Sort()
 }
 
 func wrapStrings(nodes []*ast.Node, depth int, c Config) {
@@ -1125,17 +1130,43 @@ func out(nodes []*ast.Node) []byte {
 	return result.Bytes()
 }
 
-func nodeSortFunction(sortByFieldName, sortByFieldValue bool) func([]*ast.Node) {
-	switch {
-	case sortByFieldName && sortByFieldValue:
-		return func(ns []*ast.Node) { sort.Stable(ast.ByFieldNameAndValue(ns)) }
-	case sortByFieldName:
-		return func(ns []*ast.Node) { sort.Stable(ast.ByFieldName(ns)) }
-	case sortByFieldValue:
-		return func(ns []*ast.Node) { sort.Stable(ast.ByFieldValue(ns)) }
-	default:
-		return nil
+type sortable struct {
+	config Config
+	nodes  []*ast.Node
+}
+
+func (s sortable) Len() int {
+	return len(s.nodes)
+}
+
+func (s sortable) Swap(i, j int) {
+	s.nodes[i], s.nodes[j] = s.nodes[j], s.nodes[i]
+}
+
+type sortableByNameAndValue struct {
+	sortable
+}
+
+func (s sortableByNameAndValue) Sort() {
+	if s.config.SortFieldsByFieldName || s.config.SortRepeatedFieldsByContent {
+		sort.Stable(s)
 	}
+}
+
+func (s sortableByNameAndValue) Less(i, j int) bool {
+	ni, nj := s.nodes[i], s.nodes[j]
+	if s.config.SortFieldsByFieldName {
+		if ni.Name != nj.Name {
+			return ni.Name < nj.Name
+		}
+	}
+	if s.config.SortRepeatedFieldsByContent {
+		if ni.Name != nj.Name || len(ni.Values) != 1 || len(nj.Values) != 1 {
+			return false
+		}
+		return ni.Values[0].Value < nj.Values[0].Value
+	}
+	return false
 }
 
 // stringWriter abstracts over bytes.Buffer and strings.Builder
