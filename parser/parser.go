@@ -1128,14 +1128,63 @@ func out(nodes []*ast.Node) []byte {
 func nodeSortFunction(sortByFieldName, sortByFieldValue bool) func([]*ast.Node) {
 	switch {
 	case sortByFieldName && sortByFieldValue:
-		return func(ns []*ast.Node) { sort.Stable(ast.ByFieldNameAndValue(ns)) }
+		return func(ns []*ast.Node) { sort.Stable(byFieldNameAndValue{sortableNodes(ns)}) }
 	case sortByFieldName:
-		return func(ns []*ast.Node) { sort.Stable(ast.ByFieldName(ns)) }
+		return func(ns []*ast.Node) { sort.Stable(byFieldName{sortableNodes(ns)}) }
 	case sortByFieldValue:
-		return func(ns []*ast.Node) { sort.Stable(ast.ByFieldValue(ns)) }
+		return func(ns []*ast.Node) { sort.Stable(byFieldValue{sortableNodes(ns)}) }
 	default:
 		return nil
 	}
+}
+
+func sortableNodes(ns []*ast.Node) sortable {
+	return sortable(ns)
+}
+
+type sortable []*ast.Node
+
+func (ns sortable) Len() int {
+	return len(ns)
+}
+
+func (ns sortable) Swap(i, j int) {
+	ns[i], ns[j] = ns[j], ns[i]
+}
+
+// byFieldName implements a sort.Interface that sorts nodes by their field name.
+type byFieldName struct{ sortable }
+
+func (ns byFieldName) Less(i, j int) bool {
+	ni, nj := ns.sortable[i], ns.sortable[j]
+	return ni.Name < nj.Name
+}
+
+// byFieldValue implements a sort.Interface that sorts adjacent scalar nodes with the same name by
+// their value.
+type byFieldValue struct{ sortable }
+
+func (ns byFieldValue) Less(i, j int) bool {
+	ni, nj := ns.sortable[i], ns.sortable[j]
+	if ni.Name != nj.Name || len(ni.Values) != 1 || len(nj.Values) != 1 {
+		return false
+	}
+	return ni.Values[0].Value < nj.Values[0].Value
+}
+
+// byFieldNameAndValue implements a sort.Interface that sorts nodes by their field name and scalar
+// value.
+type byFieldNameAndValue struct{ sortable }
+
+func (ns byFieldNameAndValue) Less(i, j int) bool {
+	ni, nj := ns.sortable[i], ns.sortable[j]
+	if ni.Name != nj.Name {
+		return ni.Name < nj.Name
+	}
+	if len(ni.Values) != 1 || len(nj.Values) != 1 {
+		return false
+	}
+	return ni.Values[0].Value < nj.Values[0].Value
 }
 
 // stringWriter abstracts over bytes.Buffer and strings.Builder
