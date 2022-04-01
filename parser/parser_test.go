@@ -1823,3 +1823,13 @@ func TestSmartQuotes(t *testing.T) {
 		}
 	}
 }
+
+func FuzzParse(f *testing.F) {
+	testcases := []string{"", "a: 123", "input { dimension: [2, 4, 6, 8] }"}
+	for _, tc := range testcases {
+		f.Add([]byte(tc))
+	}
+	f.Fuzz(func(t *testing.T, in []byte) {
+		Parse(in)
+	})
+}
