@@ -492,7 +492,7 @@ func (p *parser) parse(isRoot bool) (result []*ast.Node, endPos ast.Position, er
 
 			// endPos points at the closing brace, but we should rather return the position
 			// of the first character after the previous item. Therefore let's rewind a bit:
-			for p.in[endPos.Byte-1] == ' ' {
+			for endPos.Byte > 0 && p.in[endPos.Byte-1] == ' ' {
 				endPos.Byte--
 				endPos.Column--
 			}
@@ -906,7 +906,7 @@ func (p *parser) readTemplate() string {
 				}
 			}
 		}
-		if p.in[i] == '%' {
+		if i < p.length && p.in[i] == '%' {
 			i++
 			break
 		}
