@@ -40,6 +40,16 @@ type Config struct {
 	// Sort adjacent scalar fields of the same field name by their contents.
 	SortRepeatedFieldsByContent bool
 
+	// Map from Node.Name to the order of all fields within that node. See AddFieldSortOrder().
+	fieldSortOrder map[string]map[string]int
+
+	// RequireFieldSortOrderToMatchAllFieldsInNode will cause parsing to fail if a node was added via
+	// AddFieldSortOrder() but 1+ fields under that node in the textproto aren't specified in the
+	// field order. This won't fail for nodes that don't have a field order specified at all. Use this
+	// to strictly enforce that your field order config always orders ALL the fields, and you're
+	// willing for new fields in the textproto to break parsing in order to enforce it.
+	RequireFieldSortOrderToMatchAllFieldsInNode bool
+
 	// Remove lines that have the same field name and scalar value as another.
 	RemoveDuplicateValuesForRepeatedFields bool
 
@@ -60,6 +70,45 @@ type Config struct {
 
 	// Use single quotes around strings that contain double but not single quotes.
 	SmartQuotes bool
+}
+
+// AddFieldSortOrder adds a config rule for the given Node.Name, so that all contained field names
+// are output in the provided order.
+func (c *Config) AddFieldSortOrder(nodeName string, fieldOrder ...string) {
+	if c.fieldSortOrder == nil {
+		c.fieldSortOrder = make(map[string]map[string]int)
+	}
+	c.fieldSortOrder[nodeName] = makePriorities(fieldOrder...)
+}
+
+// UnsortedFieldsError will be returned by ParseWithConfig if
+// Config.RequireFieldSortOrderToMatchAllFieldsInNode is set, and an unrecognized field is found
+// while parsing.
+type UnsortedFieldsError struct {
+	UnsortedFields []UnsortedField
+}
+
+// UnsortedField records details about a single unsorted field.
+type UnsortedField struct {
+	Line            int32
+	ParentFieldName string
+	FieldName       string
+}
+
+func (e *UnsortedFieldsError) Error() string {
+	var errs []string
+	for _, us := range e.UnsortedFields {
+		errs = append(errs, fmt.Sprintf("  line: %d, parent field: %q, unsorted field: %q", us.Line, us.ParentFieldName, us.FieldName))
+	}
+	return fmt.Sprintf("fields parsed that were not specified in the parser.AddFieldSortOrder() call:\n%s", strings.Join(errs, "\n"))
+}
+
+func makePriorities(fieldOrder ...string) map[string]int {
+	priorities := make(map[string]int)
+	for i, fieldName := range fieldOrder {
+		priorities[fieldName] = i + 1
+	}
+	return priorities
 }
 
 type parser struct {
@@ -309,7 +358,7 @@ func parseWithConfig(in []byte, c Config, metaComments map[string]bool) ([]*ast.
 		return nil, fmt.Errorf("parser didn't consume all input. Stopped at %s", p.errorContext())
 	}
 	wrapStrings(nodes, 0, c)
-	sortAndFilterNodes(nodes, nodeSortFunction(c.SortFieldsByFieldName, c.SortRepeatedFieldsByContent), c.RemoveDuplicateValuesForRepeatedFields)
+	err = sortAndFilterNodes("", nodes, c)
 	return nodes, err
 }
 
@@ -914,15 +963,15 @@ func (p *parser) readTemplate() string {
 	return p.advance(i)
 }
 
-func sortAndFilterNodes(nodes []*ast.Node, sortFunction func([]*ast.Node), removeDuplicates bool) {
+func sortAndFilterNodes(parentNodeName string, nodes []*ast.Node, c Config) error {
 	if len(nodes) == 0 {
-		return
+		return nil
 	}
 	type nameAndValue struct {
 		name, value string
 	}
 	var seen map[nameAndValue]bool
-	if removeDuplicates {
+	if c.RemoveDuplicateValuesForRepeatedFields {
 		seen = make(map[nameAndValue]bool)
 	}
 	for _, nd := range nodes {
@@ -935,11 +984,23 @@ func sortAndFilterNodes(nodes []*ast.Node, sortFunction func([]*ast.Node), remov
 				seen[key] = true
 			}
 		}
-		sortAndFilterNodes(nd.Children, sortFunction, removeDuplicates)
+		err := sortAndFilterNodes(nd.Name, nd.Children, c)
+		if err != nil {
+			return err
+		}
 	}
-	if sortFunction != nil {
-		sortFunction(nodes)
+
+	s := sortable{
+		config: c,
+		nodes:  nodes,
 	}
+	sortableByNameAndValue{sortable: s}.Sort()
+	fieldOrderSorter := sortableByFieldOrder{sortable: s, parentNodeName: parentNodeName}
+	fieldOrderSorter.Sort()
+	if c.RequireFieldSortOrderToMatchAllFieldsInNode && len(fieldOrderSorter.unsortedFields) > 0 {
+		return &UnsortedFieldsError{fieldOrderSorter.unsortedFields}
+	}
+	return nil
 }
 
 func wrapStrings(nodes []*ast.Node, depth int, c Config) {
@@ -1125,17 +1186,87 @@ func out(nodes []*ast.Node) []byte {
 	return result.Bytes()
 }
 
-func nodeSortFunction(sortByFieldName, sortByFieldValue bool) func([]*ast.Node) {
-	switch {
-	case sortByFieldName && sortByFieldValue:
-		return func(ns []*ast.Node) { sort.Stable(ast.ByFieldNameAndValue(ns)) }
-	case sortByFieldName:
-		return func(ns []*ast.Node) { sort.Stable(ast.ByFieldName(ns)) }
-	case sortByFieldValue:
-		return func(ns []*ast.Node) { sort.Stable(ast.ByFieldValue(ns)) }
-	default:
-		return nil
+type sortable struct {
+	config Config
+	nodes  []*ast.Node
+}
+
+func (s sortable) Len() int {
+	return len(s.nodes)
+}
+
+func (s sortable) Swap(i, j int) {
+	s.nodes[i], s.nodes[j] = s.nodes[j], s.nodes[i]
+}
+
+type sortableByNameAndValue struct {
+	sortable
+}
+
+func (s sortableByNameAndValue) Sort() {
+	if s.config.SortFieldsByFieldName || s.config.SortRepeatedFieldsByContent {
+		sort.Stable(s)
 	}
+}
+
+func (s sortableByNameAndValue) Less(i, j int) bool {
+	ni, nj := s.nodes[i], s.nodes[j]
+	if s.config.SortFieldsByFieldName {
+		if ni.Name != nj.Name {
+			return ni.Name < nj.Name
+		}
+	}
+	if s.config.SortRepeatedFieldsByContent {
+		if ni.Name != nj.Name || len(ni.Values) != 1 || len(nj.Values) != 1 {
+			return false
+		}
+		return ni.Values[0].Value < nj.Values[0].Value
+	}
+	return false
+}
+
+type sortableByFieldOrder struct {
+	sortable
+	parentNodeName string
+
+	// If a Config.fieldOrder exists for a parent field, but fields in the textproto are found that
+	// are not in the config, the unsorted field info will be added to this slice.
+	unsortedFields []UnsortedField
+}
+
+func (s *sortableByFieldOrder) Sort() {
+	// Only sort if we have field orders for this parent node.
+	if s.config.fieldSortOrder[s.parentNodeName] != nil {
+		sort.Stable(s)
+	}
+}
+
+func (s *sortableByFieldOrder) Less(i, j int) bool {
+	order := s.config.fieldSortOrder[s.parentNodeName]
+	if order == nil {
+		return false
+	}
+
+	// CommentOnly nodes don't set priority below, and default to 9999, which keeps them at the bottom
+	lprio := 9999
+	rprio := 9999
+
+	// Unknown fields will get the int nil value of 0 from the order map, and bubble to the top.
+	if !s.nodes[i].IsCommentOnly() {
+		node := s.nodes[i]
+		lprio = order[node.Name]
+		if lprio == 0 {
+			s.unsortedFields = append(s.unsortedFields, UnsortedField{node.Start.Line, s.parentNodeName, node.Name})
+		}
+	}
+	if !s.nodes[j].IsCommentOnly() {
+		node := s.nodes[j]
+		rprio = order[node.Name]
+		if rprio == 0 {
+			s.unsortedFields = append(s.unsortedFields, UnsortedField{node.Start.Line, s.parentNodeName, node.Name})
+		}
+	}
+	return lprio < rprio
 }
 
 // stringWriter abstracts over bytes.Buffer and strings.Builder
