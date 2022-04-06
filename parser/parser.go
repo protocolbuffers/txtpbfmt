@@ -751,6 +751,9 @@ func (p *parser) isValueSep(i int) bool {
 }
 
 func (p *parser) advance(i int) string {
+	if i > p.length {
+		i = p.length
+	}
 	res := p.in[p.index:i]
 	p.index = i
 	strRes := string(res)

@@ -1825,7 +1825,8 @@ func TestSmartQuotes(t *testing.T) {
 }
 
 func FuzzParse(f *testing.F) {
-	testcases := []string{"", "a: 123", "input { dimension: [2, 4, 6, 8] }", "]", "\":%\""}
+	testcases := []string{"", "a: 123", "input { dimension: [2, 4, 6, 8] }", "]", "\":%\"",
+		"%''#''0'0''0''0''0''0\""}
 	for _, tc := range testcases {
 		f.Add([]byte(tc))
 	}
