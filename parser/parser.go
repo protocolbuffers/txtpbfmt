@@ -443,6 +443,20 @@ func (p *parser) position() ast.Position {
 	}
 }
 
+func (p *parser) consumeOptionalSeparator() error {
+	if !p.isBlankSep(p.index - 1) {
+		// If an unnamed field immediately follows non-whitespace, we require a separator character first (key_one:,:value_two instead of key_one::value_two)
+		if p.consume(':') {
+			return fmt.Errorf("parser encountered unexpected : character (should be whitespace, or a ,; separator)")
+		}
+	}
+
+	_ = p.consume(';') // Ignore optional ';'.
+	_ = p.consume(',') // Ignore optional ','.
+
+	return nil
+}
+
 // parse parses a text proto.
 // It assumes the text to be either conformant with the standard text proto
 // (i.e. passes proto.UnmarshalText() without error) or the alternative textproto
@@ -497,8 +511,9 @@ func (p *parser) parse(isRoot bool) (result []*ast.Node, endPos ast.Position, er
 				endPos.Column--
 			}
 
-			_ = p.consume(';') // Ignore optional ';'.
-			_ = p.consume(',') // Ignore optional ','.
+			if err = p.consumeOptionalSeparator(); err != nil {
+				return nil, ast.Position{}, err
+			}
 
 			// Done parsing children.
 			return res, endPos, nil
@@ -634,8 +649,10 @@ func (p *parser) parse(isRoot bool) (result []*ast.Node, endPos ast.Position, er
 				nd.PostValuesComments = preComments
 				nd.ClosingBraceComment = p.readInlineComment()
 
-				_ = p.consume(';') // Ignore optional ';'.
-				_ = p.consume(',') // Ignore optional ','.
+				if err = p.consumeOptionalSeparator(); err != nil {
+					return nil, ast.Position{}, err
+				}
+
 				continue
 			}
 		} else {
@@ -648,8 +665,9 @@ func (p *parser) parse(isRoot bool) (result []*ast.Node, endPos ast.Position, er
 			if err != nil {
 				return nil, ast.Position{}, err
 			}
-			_ = p.consume(';') // Ignore optional ';'.
-			_ = p.consume(',') // Ignore optional ','.
+			if err = p.consumeOptionalSeparator(); err != nil {
+				return nil, ast.Position{}, err
+			}
 		}
 		if p.log && p.index < p.length {
 			p.log.Infof("p.in[p.index]: %q", string(p.in[p.index]))
