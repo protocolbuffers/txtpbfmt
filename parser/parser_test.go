@@ -1108,6 +1108,41 @@ presubmit: {
   }
 }
 `}, {
+		name: "sort by subfield values",
+		in: `# txtpbfmt: sort_repeated_fields_by_subfield=operation.name
+# txtpbfmt: sort_repeated_fields_by_subfield=test.id
+presubmit: {
+  operation {
+    name: EDIT
+  }
+  operation {
+    name: ADD
+  }
+  test {
+    id: 4
+  }
+  test {
+    id: 2
+  }
+}
+`,
+		out: `# txtpbfmt: sort_repeated_fields_by_subfield=operation.name
+# txtpbfmt: sort_repeated_fields_by_subfield=test.id
+presubmit: {
+  operation {
+    name: ADD
+  }
+  operation {
+    name: EDIT
+  }
+  test {
+    id: 2
+  }
+  test {
+    id: 4
+  }
+}
+`}, {
 		name: "sort and remove duplicates",
 		in: `# txtpbfmt: sort_fields_by_field_name
 # txtpbfmt: sort_repeated_fields_by_content
@@ -1302,6 +1337,202 @@ func TestParserConfigs(t *testing.T) {
     check_delta_only: true
   }
   # Should remain below
+  auto_reviewers: "reviewerA"
+}
+`,
+	}, {
+		name: "SortNamedFieldBySubfieldContents",
+		in: `presubmit: {
+  auto_reviewers: "reviewerB"
+  check_contents: {
+    # Should go after ADD
+    operation: {
+      name: EDIT
+    }
+    operation: {
+      name: ADD
+    }
+    prohibited_regexp: "UnsafeFunction"
+    check_delta_only: true
+  }
+  # Should remain below
+  auto_reviewers: "reviewerA"
+}
+`,
+		config: Config{SortRepeatedFieldsBySubfield: []string{"operation.name"}},
+		out: `presubmit: {
+  auto_reviewers: "reviewerB"
+  check_contents: {
+    operation: {
+      name: ADD
+    }
+    # Should go after ADD
+    operation: {
+      name: EDIT
+    }
+    prohibited_regexp: "UnsafeFunction"
+    check_delta_only: true
+  }
+  # Should remain below
+  auto_reviewers: "reviewerA"
+}
+`,
+	}, {
+		name: "SortNamedFieldByMultipleSubfieldContents",
+		in: `presubmit: {
+  operation {
+    name: EDIT
+  }
+  operation {
+    name: ADD
+  }
+  test {
+    id: 4
+  }
+  test {
+    id: 2
+  }
+}
+`,
+		config: Config{SortRepeatedFieldsBySubfield: []string{"operation.name", "test.id"}},
+		out: `presubmit: {
+  operation {
+    name: ADD
+  }
+  operation {
+    name: EDIT
+  }
+  test {
+    id: 2
+  }
+  test {
+    id: 4
+  }
+}
+`,
+	}, {
+		name: "SortAnyFieldBySubfieldContents",
+		in: `presubmit: {
+  auto_reviewers: "reviewerB"
+  check_contents: {
+    # Should go after ADD
+    operation: {
+      name: EDIT
+    }
+    operation: {
+      name: ADD
+    }
+    prohibited_regexp: "UnsafeFunction"
+    check_delta_only: true
+  }
+  # Should remain below
+  auto_reviewers: "reviewerA"
+}
+`,
+		config: Config{SortRepeatedFieldsBySubfield: []string{"name"}},
+		out: `presubmit: {
+  auto_reviewers: "reviewerB"
+  check_contents: {
+    operation: {
+      name: ADD
+    }
+    # Should go after ADD
+    operation: {
+      name: EDIT
+    }
+    prohibited_regexp: "UnsafeFunction"
+    check_delta_only: true
+  }
+  # Should remain below
+  auto_reviewers: "reviewerA"
+}
+`,
+	}, {
+		name: "SortBySubfieldsDontSortFieldsWithDifferentNames",
+		in: `presubmit: {
+  check_contents: {
+    operation1: {
+      name: EDIT
+    }
+    operation2: {
+      name: ADD
+    }
+  }
+}
+`,
+		config: Config{SortRepeatedFieldsBySubfield: []string{"name"}},
+		out: `presubmit: {
+  check_contents: {
+    operation1: {
+      name: EDIT
+    }
+    operation2: {
+      name: ADD
+    }
+  }
+}
+`,
+	}, {
+		name: "SortSeparatedFieldBySubfieldContents",
+		in: `presubmit: {
+  auto_reviewers: "reviewerB"
+  check_contents: {
+    # Should go after ADD
+    operation: {
+      name: EDIT
+    }
+    split: 1
+    operation: {
+      name: ADD
+    }
+  }
+  # Should move above
+  auto_reviewers: "reviewerA"
+}
+`,
+		config: Config{SortFieldsByFieldName: true, SortRepeatedFieldsBySubfield: []string{"name"}},
+		out: `presubmit: {
+  auto_reviewers: "reviewerB"
+  # Should move above
+  auto_reviewers: "reviewerA"
+  check_contents: {
+    operation: {
+      name: ADD
+    }
+    # Should go after ADD
+    operation: {
+      name: EDIT
+    }
+    split: 1
+  }
+}
+`,
+	}, {
+		name: "SortSubfieldsIgnoreEmptySubfieldName",
+		in: `presubmit: {
+  auto_reviewers: "reviewerB"
+  check_contents: {
+    operation: {
+      name: EDIT
+    }
+    operation: {
+      name: ADD
+    }
+  }
+  auto_reviewers: "reviewerA"
+}
+`,
+		config: Config{SortRepeatedFieldsBySubfield: []string{"operation."}},
+		out: `presubmit: {
+  auto_reviewers: "reviewerB"
+  check_contents: {
+    operation: {
+      name: EDIT
+    }
+    operation: {
+      name: ADD
+    }
+  }
   auto_reviewers: "reviewerA"
 }
 `,

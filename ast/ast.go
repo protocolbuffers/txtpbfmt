@@ -142,6 +142,40 @@ func ByFieldValue(_, ni, nj *Node) bool {
 	return ni.Values[0].Value < nj.Values[0].Value
 }
 
+// ByFieldSubfield returns a NodeLess function that orders adjacent message nodes with the given
+// field name by the given subfield name value. If no field name is provided, it compares the
+// subfields of any adjacent nodes with matching names.
+func ByFieldSubfield(field, subfield string) NodeLess {
+	return func(_, ni, nj *Node) bool {
+		if ni.Name != nj.Name {
+			return false
+		}
+		if field != "" && ni.Name != field {
+			return false
+		}
+		niChildValue := ni.getChildValue(subfield)
+		njChildValue := nj.getChildValue(subfield)
+		if niChildValue == nil || njChildValue == nil {
+			return false
+		}
+		return niChildValue.Value < njChildValue.Value
+	}
+}
+
+// getChildValue returns the Value of the child with the given field name,
+// or nil if no single such child exists.
+func (n *Node) getChildValue(field string) *Value {
+	for _, c := range n.Children {
+		if c.Name == field {
+			if len(c.Values) != 1 {
+				return nil
+			}
+			return c.Values[0]
+		}
+	}
+	return nil
+}
+
 // IsCommentOnly returns true if this is a comment-only node.
 func (n *Node) IsCommentOnly() bool {
 	return n.Name == "" && n.Children == nil

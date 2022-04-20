@@ -40,6 +40,10 @@ type Config struct {
 	// Sort adjacent scalar fields of the same field name by their contents.
 	SortRepeatedFieldsByContent bool
 
+	// Sort adjacent message fields of the given field name by the contents of the given subfield.
+	// Format: either "field_name.subfield_name" or just "subfield_name" (applies to all field names).
+	SortRepeatedFieldsBySubfield []string
+
 	// Remove lines that have the same field name and scalar value as another.
 	RemoveDuplicateValuesForRepeatedFields bool
 
@@ -278,6 +282,9 @@ func parseWithConfig(in []byte, c Config, metaComments map[string]bool) ([]*ast.
 	if metaComments["sort_repeated_fields_by_content"] {
 		c.SortRepeatedFieldsByContent = true
 	}
+	for _, sf := range getMetaCommentStringValues("sort_repeated_fields_by_subfield", metaComments) {
+		c.SortRepeatedFieldsBySubfield = append(c.SortRepeatedFieldsBySubfield, sf)
+	}
 	if metaComments["remove_duplicate_values_for_repeated_fields"] {
 		c.RemoveDuplicateValuesForRepeatedFields = true
 	}
@@ -333,6 +340,22 @@ func setMetaCommentIntValue(name string, metaComments map[string]bool, value *in
 			*value = i
 		}
 	}
+}
+
+// For a MetaComment in the form comment_name=<string> returns the strings.
+func getMetaCommentStringValues(name string, metaComments map[string]bool) []string {
+	var vs []string
+	for mc := range metaComments {
+		if strings.HasPrefix(mc, fmt.Sprintf("%s ", name)) {
+			log.Errorf("format should be %s=<string>, got: %s", name, mc)
+			continue
+		}
+		prefix := fmt.Sprintf("%s=", name)
+		if strings.HasPrefix(mc, prefix) {
+			vs = append(vs, strings.TrimSpace(strings.TrimPrefix(mc, prefix)))
+		}
+	}
+	return vs
 }
 
 func newParser(in []byte, c Config) (*parser, error) {
@@ -1166,10 +1189,26 @@ func nodeSortFunction(c Config) NodeSortFunction {
 	if c.SortRepeatedFieldsByContent {
 		sorter = ast.ChainNodeLess(sorter, ast.ByFieldValue)
 	}
+	for _, sf := range c.SortRepeatedFieldsBySubfield {
+		field, subfield := parseSubfieldSpec(sf)
+		if subfield != "" {
+			sorter = ast.ChainNodeLess(sorter, ast.ByFieldSubfield(field, subfield))
+		}
+	}
 	if sorter != nil {
 		return func(parent *ast.Node, ns []*ast.Node) { sort.Stable(ast.SortableNodesWithParent(parent, ns, sorter)) }
 	}
 	return nil
+}
+
+// Returns the field and subfield parts of spec "{field}.{subfield}".
+// Spec without a dot is considered to be "{subfield}".
+func parseSubfieldSpec(subfieldSpec string) (field string, subfield string) {
+	parts := strings.SplitN(subfieldSpec, ".", 2)
+	if len(parts) == 1 {
+		return "", parts[0]
+	}
+	return parts[0], parts[1]
 }
 
 func nodeFilterFunction(c Config) NodeFilterFunction {
