@@ -309,7 +309,7 @@ func parseWithConfig(in []byte, c Config, metaComments map[string]bool) ([]*ast.
 		return nil, fmt.Errorf("parser didn't consume all input. Stopped at %s", p.errorContext())
 	}
 	wrapStrings(nodes, 0, c)
-	sortAndFilterNodes( /*parent=*/ nil, nodes, nodeSortFunction(c.SortFieldsByFieldName, c.SortRepeatedFieldsByContent), c.RemoveDuplicateValuesForRepeatedFields)
+	sortAndFilterNodes( /*parent=*/ nil, nodes, nodeSortFunction(c), nodeFilterFunction(c))
 	return nodes, err
 }
 
@@ -938,17 +938,30 @@ func (p *parser) readTemplate() string {
 // NodeSortFunction sorts the given nodes, using the parent node as context. parent can be nil.
 type NodeSortFunction func(parent *ast.Node, nodes []*ast.Node)
 
-func sortAndFilterNodes(parent *ast.Node, nodes []*ast.Node, sortFunction NodeSortFunction, removeDuplicates bool) {
+// NodeFilterFunction filters the given nodes.
+type NodeFilterFunction func(nodes []*ast.Node)
+
+func sortAndFilterNodes(parent *ast.Node, nodes []*ast.Node, sortFunction NodeSortFunction, filterFunction NodeFilterFunction) {
 	if len(nodes) == 0 {
 		return
 	}
+	if filterFunction != nil {
+		filterFunction(nodes)
+	}
+	for _, nd := range nodes {
+		sortAndFilterNodes(nd, nd.Children, sortFunction, filterFunction)
+	}
+	if sortFunction != nil {
+		sortFunction(parent, nodes)
+	}
+}
+
+// RemoveDuplicates marks duplicate key:value pairs from nodes as Deleted.
+func RemoveDuplicates(nodes []*ast.Node) {
 	type nameAndValue struct {
 		name, value string
 	}
-	var seen map[nameAndValue]bool
-	if removeDuplicates {
-		seen = make(map[nameAndValue]bool)
-	}
+	seen := make(map[nameAndValue]bool)
 	for _, nd := range nodes {
 		if seen != nil && len(nd.Values) == 1 {
 			key := nameAndValue{nd.Name, nd.Values[0].Value}
@@ -959,10 +972,6 @@ func sortAndFilterNodes(parent *ast.Node, nodes []*ast.Node, sortFunction NodeSo
 				seen[key] = true
 			}
 		}
-		sortAndFilterNodes(nd, nd.Children, sortFunction, removeDuplicates)
-	}
-	if sortFunction != nil {
-		sortFunction(parent, nodes)
 	}
 }
 
@@ -1149,16 +1158,23 @@ func out(nodes []*ast.Node) []byte {
 	return result.Bytes()
 }
 
-func nodeSortFunction(sortByFieldName, sortByFieldValue bool) NodeSortFunction {
+func nodeSortFunction(c Config) NodeSortFunction {
 	var sorter ast.NodeLess = nil
-	if sortByFieldName {
+	if c.SortFieldsByFieldName {
 		sorter = ast.ChainNodeLess(sorter, ast.ByFieldName)
 	}
-	if sortByFieldValue {
+	if c.SortRepeatedFieldsByContent {
 		sorter = ast.ChainNodeLess(sorter, ast.ByFieldValue)
 	}
 	if sorter != nil {
 		return func(parent *ast.Node, ns []*ast.Node) { sort.Stable(ast.SortableNodesWithParent(parent, ns, sorter)) }
+	}
+	return nil
+}
+
+func nodeFilterFunction(c Config) NodeFilterFunction {
+	if c.RemoveDuplicateValuesForRepeatedFields {
+		return RemoveDuplicates
 	}
 	return nil
 }
