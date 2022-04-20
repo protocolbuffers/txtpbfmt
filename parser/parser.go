@@ -309,7 +309,7 @@ func parseWithConfig(in []byte, c Config, metaComments map[string]bool) ([]*ast.
 		return nil, fmt.Errorf("parser didn't consume all input. Stopped at %s", p.errorContext())
 	}
 	wrapStrings(nodes, 0, c)
-	sortAndFilterNodes(nodes, nodeSortFunction(c.SortFieldsByFieldName, c.SortRepeatedFieldsByContent), c.RemoveDuplicateValuesForRepeatedFields)
+	sortAndFilterNodes( /*parent=*/ nil, nodes, nodeSortFunction(c.SortFieldsByFieldName, c.SortRepeatedFieldsByContent), c.RemoveDuplicateValuesForRepeatedFields)
 	return nodes, err
 }
 
@@ -935,7 +935,10 @@ func (p *parser) readTemplate() string {
 	return p.advance(i)
 }
 
-func sortAndFilterNodes(nodes []*ast.Node, sortFunction func([]*ast.Node), removeDuplicates bool) {
+// NodeSortFunction sorts the given nodes, using the parent node as context. parent can be nil.
+type NodeSortFunction func(parent *ast.Node, nodes []*ast.Node)
+
+func sortAndFilterNodes(parent *ast.Node, nodes []*ast.Node, sortFunction NodeSortFunction, removeDuplicates bool) {
 	if len(nodes) == 0 {
 		return
 	}
@@ -956,10 +959,10 @@ func sortAndFilterNodes(nodes []*ast.Node, sortFunction func([]*ast.Node), remov
 				seen[key] = true
 			}
 		}
-		sortAndFilterNodes(nd.Children, sortFunction, removeDuplicates)
+		sortAndFilterNodes(nd, nd.Children, sortFunction, removeDuplicates)
 	}
 	if sortFunction != nil {
-		sortFunction(nodes)
+		sortFunction(parent, nodes)
 	}
 }
 
@@ -1146,17 +1149,18 @@ func out(nodes []*ast.Node) []byte {
 	return result.Bytes()
 }
 
-func nodeSortFunction(sortByFieldName, sortByFieldValue bool) func([]*ast.Node) {
-	switch {
-	case sortByFieldName && sortByFieldValue:
-		return func(ns []*ast.Node) { sort.Stable(ast.ByFieldNameAndValue(ns)) }
-	case sortByFieldName:
-		return func(ns []*ast.Node) { sort.Stable(ast.ByFieldName(ns)) }
-	case sortByFieldValue:
-		return func(ns []*ast.Node) { sort.Stable(ast.ByFieldValue(ns)) }
-	default:
-		return nil
+func nodeSortFunction(sortByFieldName, sortByFieldValue bool) NodeSortFunction {
+	var sorter ast.NodeLess = nil
+	if sortByFieldName {
+		sorter = ast.ChainNodeLess(sorter, ast.ByFieldName)
 	}
+	if sortByFieldValue {
+		sorter = ast.ChainNodeLess(sorter, ast.ByFieldValue)
+	}
+	if sorter != nil {
+		return func(parent *ast.Node, ns []*ast.Node) { sort.Stable(ast.SortableNodesWithParent(parent, ns, sorter)) }
+	}
+	return nil
 }
 
 // stringWriter abstracts over bytes.Buffer and strings.Builder

@@ -73,62 +73,70 @@ type Node struct {
 	IsAngleBracket bool
 }
 
-func sortableNodes(ns []*Node) sortable {
-	return sortable(ns)
+// NodeLess is a sorting function that compares two *Nodes, possibly using the parent Node
+// for context, returning whether a is less than b.
+type NodeLess func(parent, a, b *Node) bool
+
+// ChainNodeLess combines two NodeLess functions that returns the first comparison if values are
+// not equal, else returns the second.
+func ChainNodeLess(first, second NodeLess) NodeLess {
+	if first == nil {
+		return second
+	}
+	if second == nil {
+		return first
+	}
+	return func(parent, a, b *Node) bool {
+		if isALess := first(parent, a, b); isALess {
+			return true
+		}
+		if isBLess := first(parent, b, a); isBLess {
+			return false
+		}
+		return second(parent, a, b)
+	}
 }
 
-type sortable []*Node
-
-func (ns sortable) Len() int {
-	return len(ns)
+// SortableNodes returns a sort.Interface that sorts nodes by the given less function.
+func SortableNodes(ns []*Node, less NodeLess) sort.Interface {
+	return sortable{ /*parent=*/ nil, ns, less}
 }
 
-func (ns sortable) Swap(i, j int) {
-	ns[i], ns[j] = ns[j], ns[i]
+// SortableNodesWithParent returns a sort.Interface that sorts nodes by the given less function.
+func SortableNodesWithParent(parent *Node, ns []*Node, less NodeLess) sort.Interface {
+	return sortable{parent, ns, less}
 }
 
-// ByFieldName constructs a sort.Interface that sorts nodes by their field name.
-func ByFieldName(ns []*Node) sort.Interface {
-	return byFieldName{sortableNodes(ns)}
+type sortable struct {
+	parent *Node
+	ns     []*Node
+	less   NodeLess
 }
 
-type byFieldName struct{ sortable }
+func (s sortable) Len() int {
+	return len(s.ns)
+}
 
-func (ns byFieldName) Less(i, j int) bool {
-	ni, nj := ns.sortable[i], ns.sortable[j]
+func (s sortable) Swap(i, j int) {
+	s.ns[i], s.ns[j] = s.ns[j], s.ns[i]
+}
+
+func (s sortable) Less(i, j int) bool {
+	if s.less == nil {
+		return false
+	}
+	return s.less(s.parent, s.ns[i], s.ns[j])
+}
+
+// ByFieldName is a NodeLess function that orders nodes by their field name.
+func ByFieldName(_, ni, nj *Node) bool {
 	return ni.Name < nj.Name
 }
 
-// ByFieldValue constructs a sort.Interface that sorts adjacent scalar nodes with the same name by
-// their value.
-func ByFieldValue(ns []*Node) sort.Interface {
-	return byFieldValue{sortableNodes(ns)}
-}
-
-type byFieldValue struct{ sortable }
-
-func (ns byFieldValue) Less(i, j int) bool {
-	ni, nj := ns.sortable[i], ns.sortable[j]
+// ByFieldValue is a NodeLess function that orders adjacent scalar nodes with the same name by
+// their scalar value.
+func ByFieldValue(_, ni, nj *Node) bool {
 	if ni.Name != nj.Name || len(ni.Values) != 1 || len(nj.Values) != 1 {
-		return false
-	}
-	return ni.Values[0].Value < nj.Values[0].Value
-}
-
-// ByFieldNameAndValue constructs a sort.Interface that sorts nodes by their field name and scalar
-// value.
-func ByFieldNameAndValue(ns []*Node) sort.Interface {
-	return byFieldNameAndValue{sortableNodes(ns)}
-}
-
-type byFieldNameAndValue struct{ sortable }
-
-func (ns byFieldNameAndValue) Less(i, j int) bool {
-	ni, nj := ns.sortable[i], ns.sortable[j]
-	if ni.Name != nj.Name {
-		return ni.Name < nj.Name
-	}
-	if len(ni.Values) != 1 || len(nj.Values) != 1 {
 		return false
 	}
 	return ni.Values[0].Value < nj.Values[0].Value

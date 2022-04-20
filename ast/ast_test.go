@@ -1,12 +1,74 @@
 package ast_test
 
 import (
+	"sort"
 	"testing"
 
+	"google3/third_party/golang/cmp/cmp"
 	"github.com/kylelemons/godebug/diff"
 	"github.com/protocolbuffers/txtpbfmt/ast"
 	"github.com/protocolbuffers/txtpbfmt/parser"
 )
+
+func TestChainNodeLess(t *testing.T) {
+	byFirstChar := func(_, ni, nj *ast.Node) bool {
+		return ni.Name[0] < nj.Name[0]
+	}
+	bySecondChar := func(_, ni, nj *ast.Node) bool {
+		return ni.Name[1] < nj.Name[1]
+	}
+	tests := []struct {
+		name  string
+		a     ast.NodeLess
+		b     ast.NodeLess
+		names []string
+		want  []string
+	}{{
+		name:  "nil + byFirstChar",
+		a:     nil,
+		b:     byFirstChar,
+		names: []string{"c", "b", "z", "a"},
+		want:  []string{"a", "b", "c", "z"},
+	}, {
+		name:  "byFirstChar + nil",
+		a:     nil,
+		b:     byFirstChar,
+		names: []string{"c", "b", "z", "a"},
+		want:  []string{"a", "b", "c", "z"},
+	}, {
+		name:  "byFirstChar + bySecondChar",
+		a:     byFirstChar,
+		b:     bySecondChar,
+		names: []string{"zc", "bb", "za", "aa", "ac", "ba", "bc", "ab", "zb"},
+		want:  []string{"aa", "ab", "ac", "ba", "bb", "bc", "za", "zb", "zc"},
+	}, {
+		name:  "bySecondChar + byFirstChar",
+		a:     bySecondChar,
+		b:     byFirstChar,
+		names: []string{"zc", "bb", "za", "aa", "ac", "ba", "bc", "ab", "zb"},
+		want:  []string{"aa", "ba", "za", "ab", "bb", "zb", "ac", "bc", "zc"},
+	}}
+	// Map strings into Node names, sort Nodes, map Node names into strings, return sorted names.
+	sortNames := func(names []string, less ast.NodeLess) []string {
+		ns := []*ast.Node{}
+		for _, n := range names {
+			ns = append(ns, &ast.Node{Name: n})
+		}
+		sort.Stable(ast.SortableNodes(ns, less))
+		rs := []string{}
+		for _, n := range ns {
+			rs = append(rs, n.Name)
+		}
+		return rs
+	}
+	for _, tc := range tests {
+		less := ast.ChainNodeLess(tc.a, tc.b)
+		got := sortNames(tc.names, less)
+		if diff := cmp.Diff(tc.want, got); diff != "" {
+			t.Errorf("%s sorting %v returned diff (-want, +got):\n%s", tc.name, tc.names, diff)
+		}
+	}
+}
 
 func TestGetFromPath(t *testing.T) {
 	content := `first {
