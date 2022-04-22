@@ -308,6 +308,9 @@ func addMetaCommentsToConfig(in []byte, c *Config) {
 	if metaComments["expand_all_children"] {
 		c.ExpandAllChildren = true
 	}
+	if metaComments["preserve_angle_brackets"] {
+		c.PreserveAngleBrackets = true
+	}
 	if metaComments["remove_duplicate_values_for_repeated_fields"] {
 		c.RemoveDuplicateValuesForRepeatedFields = true
 	}

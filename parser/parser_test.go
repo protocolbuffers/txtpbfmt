@@ -1024,6 +1024,24 @@ presubmit {
   }
 }
 `}, {
+		name: "preserve angle brackets",
+		in: `# txtpbfmt: preserve_angle_brackets
+foo <
+  a: 1
+>
+foo {
+  b: 2
+}
+`,
+		out: `# txtpbfmt: preserve_angle_brackets
+foo <
+  a: 1
+>
+foo {
+  b: 2
+}
+`,
+	}, {
 		name: "repeated proto format",
 		in: `{
   		a: 1;
