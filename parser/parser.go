@@ -24,6 +24,9 @@ import (
 // Config can be used to pass additional config parameters to the formatter at
 // the time of the API call.
 type Config struct {
+	// Do not apply any reformatting to this file.
+	Disable bool
+
 	// Expand all children irrespective of the initial state.
 	ExpandAllChildren bool
 
@@ -112,12 +115,12 @@ func Format(in []byte) ([]byte, error) {
 // FormatWithConfig functions similar to format, but allows the user to pass in
 // additional configuration options.
 func FormatWithConfig(in []byte, c Config) ([]byte, error) {
-	metaComments := getMetaComments(in)
-	if metaComments["disable"] {
+	addMetaCommentsToConfig(in, &c)
+	if c.Disable {
 		log.Infoln("Ignored file with 'disable' comment.")
 		return in, nil
 	}
-	nodes, err := parseWithConfig(in, c, metaComments)
+	nodes, err := parseWithMetaCommentConfig(in, c)
 	if err != nil {
 		return nil, err
 	}
@@ -263,41 +266,12 @@ func Parse(in []byte) ([]*ast.Node, error) {
 // ParseWithConfig functions similar to Parse, but allows the user to pass in
 // additional configuration options.
 func ParseWithConfig(in []byte, c Config) ([]*ast.Node, error) {
-	return parseWithConfig(in, c, getMetaComments(in))
+	addMetaCommentsToConfig(in, &c)
+	return parseWithMetaCommentConfig(in, c)
 }
 
-func parseWithConfig(in []byte, c Config, metaComments map[string]bool) ([]*ast.Node, error) {
-	if metaComments["expand_all_children"] {
-		c.ExpandAllChildren = true
-	}
-	if metaComments["skip_all_colons"] {
-		c.SkipAllColons = true
-	}
-	if metaComments["allow_unnamed_nodes_everywhere"] {
-		c.AllowUnnamedNodesEverywhere = true
-	}
-	if metaComments["sort_fields_by_field_name"] {
-		c.SortFieldsByFieldName = true
-	}
-	if metaComments["sort_repeated_fields_by_content"] {
-		c.SortRepeatedFieldsByContent = true
-	}
-	for _, sf := range getMetaCommentStringValues("sort_repeated_fields_by_subfield", metaComments) {
-		c.SortRepeatedFieldsBySubfield = append(c.SortRepeatedFieldsBySubfield, sf)
-	}
-	if metaComments["remove_duplicate_values_for_repeated_fields"] {
-		c.RemoveDuplicateValuesForRepeatedFields = true
-	}
-	if metaComments["allow_triple_quoted_strings"] {
-		c.AllowTripleQuotedStrings = true
-	}
-	if metaComments["wrap_html_strings"] {
-		c.WrapHTMLStrings = true
-	}
-	if metaComments["smartquotes"] {
-		c.SmartQuotes = true
-	}
-	setMetaCommentIntValue("wrap_strings_at_column", metaComments, &c.WrapStringsAtColumn)
+// Parses in textproto with MetaComments already added to configuration.
+func parseWithMetaCommentConfig(in []byte, c Config) ([]*ast.Node, error) {
 	p, err := newParser(in, c)
 	if err != nil {
 		return nil, err
@@ -318,6 +292,44 @@ func parseWithConfig(in []byte, c Config, metaComments map[string]bool) ([]*ast.
 	wrapStrings(nodes, 0, c)
 	sortAndFilterNodes( /*parent=*/ nil, nodes, nodeSortFunction(c), nodeFilterFunction(c))
 	return nodes, err
+}
+
+func addMetaCommentsToConfig(in []byte, c *Config) {
+	metaComments := getMetaComments(in)
+	if metaComments["allow_triple_quoted_strings"] {
+		c.AllowTripleQuotedStrings = true
+	}
+	if metaComments["allow_unnamed_nodes_everywhere"] {
+		c.AllowUnnamedNodesEverywhere = true
+	}
+	if metaComments["disable"] {
+		c.Disable = true
+	}
+	if metaComments["expand_all_children"] {
+		c.ExpandAllChildren = true
+	}
+	if metaComments["remove_duplicate_values_for_repeated_fields"] {
+		c.RemoveDuplicateValuesForRepeatedFields = true
+	}
+	if metaComments["skip_all_colons"] {
+		c.SkipAllColons = true
+	}
+	if metaComments["smartquotes"] {
+		c.SmartQuotes = true
+	}
+	if metaComments["sort_fields_by_field_name"] {
+		c.SortFieldsByFieldName = true
+	}
+	if metaComments["sort_repeated_fields_by_content"] {
+		c.SortRepeatedFieldsByContent = true
+	}
+	for _, sf := range getMetaCommentStringValues("sort_repeated_fields_by_subfield", metaComments) {
+		c.SortRepeatedFieldsBySubfield = append(c.SortRepeatedFieldsBySubfield, sf)
+	}
+	if metaComments["wrap_html_strings"] {
+		c.WrapHTMLStrings = true
+	}
+	setMetaCommentIntValue("wrap_strings_at_column", metaComments, &c.WrapStringsAtColumn)
 }
 
 // For a MetaComment in the form comment_name=<int> set *int to the value. Will not change
