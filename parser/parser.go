@@ -255,7 +255,7 @@ func removeDeleted(nodes []*ast.Node) []*ast.Node {
 
 var (
 	spaceSeparators = []byte(" \t\n")
-	valueSeparators = []byte(" \t\n{}:,]<>;#")
+	valueSeparators = []byte(" \t\n{}:,[]<>;#")
 )
 
 // Parse returns a tree representation of a textproto file.
