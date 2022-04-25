@@ -698,12 +698,6 @@ func (p *parser) parse(isRoot bool) (result []*ast.Node, endPos ast.Position, er
 			p.index = int(previousPos.Byte)
 			p.line = int(previousPos.Line)
 			p.column = int(previousPos.Column)
-
-			// If we're not in a list, error on missing colon for what must be scalar value
-			if !p.nextInputIs(',') && nd.SkipColon {
-				return nil, ast.Position{}, fmt.Errorf("Missing colon for scalar at %s", p.errorContext())
-			}
-
 			// Handle Values.
 			nd.Values, err = p.readValues()
 			if err != nil {
