@@ -4,7 +4,7 @@ import (
 	"sort"
 	"testing"
 
-	"google3/third_party/golang/cmp/cmp"
+	"github.com/google/go-cmp/cmp"
 	"github.com/kylelemons/godebug/diff"
 	"github.com/protocolbuffers/txtpbfmt/ast"
 	"github.com/protocolbuffers/txtpbfmt/parser"
