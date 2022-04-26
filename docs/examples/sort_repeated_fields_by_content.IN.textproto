@@ -1,0 +1,9 @@
+# txtpbfmt: sort_repeated_fields_by_content
+head {
+  a: 3
+  a: 2
+  a: 1
+  b: "c"
+  b: "a"
+  b: "b"
+}

@@ -1,0 +1,15 @@
+# txtpbfmt: sort_repeated_fields_by_subfield=oper.id
+head {
+  oper {
+    id: "c"
+    value: 42
+  }
+  oper {
+    id: "m"
+    value: 12
+  }
+  oper {
+    id: "x"
+    value: 29
+  }
+}

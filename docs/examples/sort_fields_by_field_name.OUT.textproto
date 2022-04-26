@@ -1,0 +1,9 @@
+# txtpbfmt: sort_fields_by_field_name
+head {
+  a: 8
+  b: 5
+  b: 7
+  c: 4
+  g: 5
+  z: 3
+}
