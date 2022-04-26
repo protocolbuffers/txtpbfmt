@@ -10,6 +10,7 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
+	"math"
 	"regexp"
 	"sort"
 	"strconv"
@@ -47,6 +48,16 @@ type Config struct {
 	// Format: either "field_name.subfield_name" or just "subfield_name" (applies to all field names).
 	SortRepeatedFieldsBySubfield []string
 
+	// Map from Node.Name to the order of all fields within that node. See AddFieldSortOrder().
+	fieldSortOrder map[string][]string
+
+	// RequireFieldSortOrderToMatchAllFieldsInNode will cause parsing to fail if a node was added via
+	// AddFieldSortOrder() but 1+ fields under that node in the textproto aren't specified in the
+	// field order. This won't fail for nodes that don't have a field order specified at all. Use this
+	// to strictly enforce that your field order config always orders ALL the fields, and you're
+	// willing for new fields in the textproto to break parsing in order to enforce it.
+	RequireFieldSortOrderToMatchAllFieldsInNode bool
+
 	// Remove lines that have the same field name and scalar value as another.
 	RemoveDuplicateValuesForRepeatedFields bool
 
@@ -67,6 +78,41 @@ type Config struct {
 
 	// Use single quotes around strings that contain double but not single quotes.
 	SmartQuotes bool
+}
+
+// RootName contains a constant that can be used to identify the root of all Nodes.
+const RootName = "__ROOT__"
+
+// AddFieldSortOrder adds a config rule for the given Node.Name, so that all contained field names
+// are output in the provided order. To specify an order for top-level Nodes, use RootName as the
+// nodeName.
+func (c *Config) AddFieldSortOrder(nodeName string, fieldOrder ...string) {
+	if c.fieldSortOrder == nil {
+		c.fieldSortOrder = make(map[string][]string)
+	}
+	c.fieldSortOrder[nodeName] = fieldOrder
+}
+
+// UnsortedFieldsError will be returned by ParseWithConfig if
+// Config.RequireFieldSortOrderToMatchAllFieldsInNode is set, and an unrecognized field is found
+// while parsing.
+type UnsortedFieldsError struct {
+	UnsortedFields []UnsortedField
+}
+
+// UnsortedField records details about a single unsorted field.
+type UnsortedField struct {
+	FieldName       string
+	Line            int32
+	ParentFieldName string
+}
+
+func (e *UnsortedFieldsError) Error() string {
+	var errs []string
+	for _, us := range e.UnsortedFields {
+		errs = append(errs, fmt.Sprintf("  line: %d, parent field: %q, unsorted field: %q", us.Line, us.ParentFieldName, us.FieldName))
+	}
+	return fmt.Sprintf("fields parsed that were not specified in the parser.AddFieldSortOrder() call:\n%s", strings.Join(errs, "\n"))
 }
 
 type parser struct {
@@ -290,8 +336,11 @@ func parseWithMetaCommentConfig(in []byte, c Config) ([]*ast.Node, error) {
 		return nil, fmt.Errorf("parser didn't consume all input. Stopped at %s", p.errorContext())
 	}
 	wrapStrings(nodes, 0, c)
-	sortAndFilterNodes( /*parent=*/ nil, nodes, nodeSortFunction(c), nodeFilterFunction(c))
-	return nodes, err
+	err = sortAndFilterNodes( /*parent=*/ nil, nodes, nodeSortFunction(c), nodeFilterFunction(c))
+	if err != nil {
+		return nil, err
+	}
+	return nodes, nil
 }
 
 func addMetaCommentsToConfig(in []byte, c *Config) {
@@ -974,24 +1023,28 @@ func (p *parser) readTemplate() string {
 }
 
 // NodeSortFunction sorts the given nodes, using the parent node as context. parent can be nil.
-type NodeSortFunction func(parent *ast.Node, nodes []*ast.Node)
+type NodeSortFunction func(parent *ast.Node, nodes []*ast.Node) error
 
 // NodeFilterFunction filters the given nodes.
 type NodeFilterFunction func(nodes []*ast.Node)
 
-func sortAndFilterNodes(parent *ast.Node, nodes []*ast.Node, sortFunction NodeSortFunction, filterFunction NodeFilterFunction) {
+func sortAndFilterNodes(parent *ast.Node, nodes []*ast.Node, sortFunction NodeSortFunction, filterFunction NodeFilterFunction) error {
 	if len(nodes) == 0 {
-		return
+		return nil
 	}
 	if filterFunction != nil {
 		filterFunction(nodes)
 	}
 	for _, nd := range nodes {
-		sortAndFilterNodes(nd, nd.Children, sortFunction, filterFunction)
+		err := sortAndFilterNodes(nd, nd.Children, sortFunction, filterFunction)
+		if err != nil {
+			return err
+		}
 	}
 	if sortFunction != nil {
-		sortFunction(parent, nodes)
+		return sortFunction(parent, nodes)
 	}
+	return nil
 }
 
 // RemoveDuplicates marks duplicate key:value pairs from nodes as Deleted.
@@ -1196,8 +1249,41 @@ func out(nodes []*ast.Node) []byte {
 	return result.Bytes()
 }
 
+// UnsortedFieldCollector collects UnsortedFields during parsing.
+type UnsortedFieldCollector struct {
+	fields map[string]UnsortedField
+}
+
+func newUnsortedFieldCollector() *UnsortedFieldCollector {
+	return &UnsortedFieldCollector{
+		fields: make(map[string]UnsortedField),
+	}
+}
+
+// UnsortedFieldCollectorFunc collects UnsortedFields during parsing.
+type UnsortedFieldCollectorFunc func(name string, line int32, parent string)
+
+func (ufc *UnsortedFieldCollector) collect(name string, line int32, parent string) {
+	ufc.fields[name] = UnsortedField{name, line, parent}
+}
+
+func (ufc *UnsortedFieldCollector) asError() error {
+	if len(ufc.fields) == 0 {
+		return nil
+	}
+	var fields []UnsortedField
+	for _, f := range ufc.fields {
+		fields = append(fields, f)
+	}
+	return &UnsortedFieldsError{fields}
+}
+
 func nodeSortFunction(c Config) NodeSortFunction {
 	var sorter ast.NodeLess = nil
+	unsortedFieldCollector := newUnsortedFieldCollector()
+	for name, fieldOrder := range c.fieldSortOrder {
+		sorter = ast.ChainNodeLess(sorter, ByFieldOrder(name, fieldOrder, unsortedFieldCollector.collect))
+	}
 	if c.SortFieldsByFieldName {
 		sorter = ast.ChainNodeLess(sorter, ast.ByFieldName)
 	}
@@ -1211,7 +1297,13 @@ func nodeSortFunction(c Config) NodeSortFunction {
 		}
 	}
 	if sorter != nil {
-		return func(parent *ast.Node, ns []*ast.Node) { sort.Stable(ast.SortableNodesWithParent(parent, ns, sorter)) }
+		return func(parent *ast.Node, ns []*ast.Node) error {
+			sort.Stable(ast.SortableNodesWithParent(parent, ns, sorter))
+			if c.RequireFieldSortOrderToMatchAllFieldsInNode {
+				return unsortedFieldCollector.asError()
+			}
+			return nil
+		}
 	}
 	return nil
 }
@@ -1231,6 +1323,39 @@ func nodeFilterFunction(c Config) NodeFilterFunction {
 		return RemoveDuplicates
 	}
 	return nil
+}
+
+// ByFieldOrder returns a NodeLess function that orders fields within a node named name
+// by the order specified in fieldOrder. Nodes sorted but not specified by the field order
+// are bubbled to the top and reported to unsortedCollector.
+func ByFieldOrder(name string, fieldOrder []string, unsortedCollector UnsortedFieldCollectorFunc) ast.NodeLess {
+	priorities := make(map[string]int)
+	for i, fieldName := range fieldOrder {
+		priorities[fieldName] = i + 1
+	}
+	return func(parent, ni, nj *ast.Node) bool {
+		if parent != nil && parent.Name != name {
+			return false
+		}
+		if parent == nil && name != RootName {
+			return false
+		}
+		getNodePriority := func(node *ast.Node) int {
+			// CommentOnly nodes don't set priority below, and default to MaxInt, which keeps them at the bottom
+			prio := math.MaxInt
+
+			// Unknown fields will get the int nil value of 0 from the order map, and bubble to the top.
+			if !node.IsCommentOnly() {
+				var ok bool
+				prio, ok = priorities[node.Name]
+				if !ok {
+					unsortedCollector(node.Name, node.Start.Line, parent.Name)
+				}
+			}
+			return prio
+		}
+		return getNodePriority(ni) < getNodePriority(nj)
+	}
 }
 
 // stringWriter abstracts over bytes.Buffer and strings.Builder
