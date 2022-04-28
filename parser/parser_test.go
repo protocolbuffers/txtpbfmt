@@ -26,6 +26,8 @@ func TestError(t *testing.T) {
 	}, {
 		in: `name: "string with literal new line
 "`, err: "new line",
+	}, {
+		in: `list_with_empty_list: [a,,b]`, err: "empty value in list",
 	}}
 	for _, input := range inputs {
 		out, err := Format([]byte(input.in))
