@@ -17,6 +17,9 @@ func TestError(t *testing.T) {
 	}{{
 		in: "list_wrong_end: [one, two}",
 	}, {
+		in:  "delimiter_non_optional_for_scalar 1",
+		err: "Missing colon",
+	}, {
 		in:  "multy_string_list: ['a' 'b', 'c']",
 		err: "multiple-string value",
 	}, {
