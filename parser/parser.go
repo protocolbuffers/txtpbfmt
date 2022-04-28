@@ -747,13 +747,6 @@ func (p *parser) parse(isRoot bool) (result []*ast.Node, endPos ast.Position, er
 			p.index = int(previousPos.Byte)
 			p.line = int(previousPos.Line)
 			p.column = int(previousPos.Column)
-
-			// If next character is start of a value (not some separator), check for presence of colon.
-			// Since all non-scalar cases have already been handled above, missing colon here must be for scalar value, where it is not optional.
-			if !p.isValueSep(p.index) && nd.SkipColon {
-				return nil, ast.Position{}, fmt.Errorf("Missing colon for scalar at %s", p.errorContext())
-			}
-
 			// Handle Values.
 			nd.Values, err = p.readValues()
 			if err != nil {
