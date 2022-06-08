@@ -714,7 +714,7 @@ func (p *parser) parse(isRoot bool) (result []*ast.Node, endPos ast.Position, er
 						return nil, ast.Position{}, err
 					}
 					if len(vals) != 1 {
-						return nil, ast.Position{}, fmt.Errorf("multiple-string value not supported (%v). Please add comma explcitily, see http://b/162070952", vals)
+						return nil, ast.Position{}, fmt.Errorf("multiple-string value not supported (%v). Please add comma explicitly, see http://b/162070952", vals)
 					}
 					vals[0].PreComments = append(vals[0].PreComments, preComments...)
 
