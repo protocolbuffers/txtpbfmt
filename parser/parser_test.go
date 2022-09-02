@@ -1843,9 +1843,25 @@ s:
 		config: Config{
 			WrapStringsAtColumn: 14,
 		},
-		in: `root { inner { s: "89 1234" } }
+		in: `root {
+  # inline children don't wrap
+  inner { inline: "89 1234" }
+  # Verify that skipping an inline string doesn't skip the rest of the file.
+  wrappable {
+    s: "will wrap"
+  }
+}
 `,
-		out: `root { inner { s: "89 1234" } }
+		out: `root {
+  # inline children don't wrap
+  inner { inline: "89 1234" }
+  # Verify that skipping an inline string doesn't skip the rest of the file.
+  wrappable {
+    s:
+      "will "
+      "wrap"
+  }
+}
 `,
 	}, {
 		name: "WrapStrings_exactlyNumColumnsDoesNotWrap",

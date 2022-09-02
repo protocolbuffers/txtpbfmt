@@ -803,10 +803,11 @@ func (p *parser) readContinuousBlocksOfComments() []string {
 }
 
 // skipWhiteSpaceAndReadComments has multiple cases:
-// - (1) reading a block of comments followed by a blank line
-// - (2) reading a block of comments followed by non-blank content
-// - (3) reading the inline comments between the current char and the end of the
+//   - (1) reading a block of comments followed by a blank line
+//   - (2) reading a block of comments followed by non-blank content
+//   - (3) reading the inline comments between the current char and the end of the
 //     current line
+//
 // Lines of comments and number of blank lines will be returned.
 func (p *parser) skipWhiteSpaceAndReadComments(multiLine bool) ([]string, int) {
 	i := p.index
@@ -1072,7 +1073,7 @@ func wrapStrings(nodes []*ast.Node, depth int, c Config) {
 	}
 	for _, nd := range nodes {
 		if nd.ChildrenSameLine {
-			return
+			continue
 		}
 		if needsWrapping(nd, depth, c) {
 			wrapLines(nd, depth, c)
