@@ -56,3 +56,7 @@ most popular choice is `.textpb`).
 ## Which tools support it? How to format on save?
 
 Currently there is no open source integration with any editor.
+
+## See also
+
+* [Text Format Language Specification](https://developers.google.com/protocol-buffers/docs/text-format-spec)
