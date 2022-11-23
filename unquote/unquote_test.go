@@ -4,7 +4,6 @@ import (
 	"strings"
 	"testing"
 
-	log "github.com/golang/glog"
 	"github.com/kylelemons/godebug/diff"
 	"github.com/protocolbuffers/txtpbfmt/ast"
 )
@@ -45,8 +44,8 @@ func TestUnquote(t *testing.T) {
 			continue
 		}
 		if diff := diff.Diff(input.want, got); diff != "" {
-			log.Infof("want: %q", input.want)
-			log.Infof("got:  %q", got)
+			t.Logf("want: %q", input.want)
+			t.Logf("got:  %q", got)
 			t.Errorf("Unquote(%v) returned diff (-want, +got):\n%s", input.in, diff)
 		}
 
