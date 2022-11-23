@@ -68,10 +68,16 @@ func main() {
 			log.Exit(err)
 		}
 
+		// Only pass the verbose logger if its level is enabled.
+		var logger parser.Logger
+		if l := log.V(2); l {
+			logger = l
+		}
 		newContent, err := parser.FormatWithConfig(content, parser.Config{
 			ExpandAllChildren:        *expandAllChildren,
 			SkipAllColons:            *skipAllColons,
 			AllowTripleQuotedStrings: *allowTripleQuotedStrings,
+			Logger:                   logger,
 		})
 		if err != nil {
 			errorf("parser.Format for path %v with content %q returned err %v", path, contentForLogging(content), err)
