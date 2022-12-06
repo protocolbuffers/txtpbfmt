@@ -9,7 +9,7 @@ This saves development (read/edit/review) time and enables automated edits.
 Install:
 
 ```shell
-$ go get -u github.com/protocolbuffers/txtpbfmt/cmd/txtpbfmt
+$ go install github.com/protocolbuffers/txtpbfmt/cmd/txtpbfmt@latest
 ```
 
 Format files in-place:
