@@ -161,9 +161,7 @@ func Format(in []byte) ([]byte, error) {
 // FormatWithConfig functions similar to format, but allows the user to pass in
 // additional configuration options.
 func FormatWithConfig(in []byte, c Config) ([]byte, error) {
-	if err := addMetaCommentsToConfig(in, &c); err != nil {
-		return nil, err
-	}
+	addMetaCommentsToConfig(in, &c)
 	if c.Disable {
 		log.Infoln("Ignored file with 'disable' comment.")
 		return in, nil
@@ -314,9 +312,7 @@ func Parse(in []byte) ([]*ast.Node, error) {
 // ParseWithConfig functions similar to Parse, but allows the user to pass in
 // additional configuration options.
 func ParseWithConfig(in []byte, c Config) ([]*ast.Node, error) {
-	if err := addMetaCommentsToConfig(in, &c); err != nil {
-		return nil, err
-	}
+	addMetaCommentsToConfig(in, &c)
 	return parseWithMetaCommentConfig(in, c)
 }
 
@@ -339,16 +335,15 @@ func parseWithMetaCommentConfig(in []byte, c Config) ([]*ast.Node, error) {
 	if p.index < p.length {
 		return nil, fmt.Errorf("parser didn't consume all input. Stopped at %s", p.errorContext())
 	}
-	if err := wrapStrings(nodes, 0, c); err != nil {
-		return nil, err
-	}
-	if err := sortAndFilterNodes( /*parent=*/ nil, nodes, nodeSortFunction(c), nodeFilterFunction(c)); err != nil {
+	wrapStrings(nodes, 0, c)
+	err = sortAndFilterNodes( /*parent=*/ nil, nodes, nodeSortFunction(c), nodeFilterFunction(c))
+	if err != nil {
 		return nil, err
 	}
 	return nodes, nil
 }
 
-func addMetaCommentsToConfig(in []byte, c *Config) error {
+func addMetaCommentsToConfig(in []byte, c *Config) {
 	metaComments := getMetaComments(in)
 	if metaComments["allow_triple_quoted_strings"] {
 		c.AllowTripleQuotedStrings = true
@@ -380,27 +375,22 @@ func addMetaCommentsToConfig(in []byte, c *Config) error {
 	if metaComments["sort_repeated_fields_by_content"] {
 		c.SortRepeatedFieldsByContent = true
 	}
-
-	sortFields, err := getMetaCommentStringValues("sort_repeated_fields_by_subfield", metaComments)
-	if err != nil {
-		return err
-	}
-	for _, sf := range sortFields {
+	for _, sf := range getMetaCommentStringValues("sort_repeated_fields_by_subfield", metaComments) {
 		c.SortRepeatedFieldsBySubfield = append(c.SortRepeatedFieldsBySubfield, sf)
 	}
-
 	if metaComments["wrap_html_strings"] {
 		c.WrapHTMLStrings = true
 	}
-	return setMetaCommentIntValue("wrap_strings_at_column", metaComments, &c.WrapStringsAtColumn)
+	setMetaCommentIntValue("wrap_strings_at_column", metaComments, &c.WrapStringsAtColumn)
 }
 
 // For a MetaComment in the form comment_name=<int> set *int to the value. Will not change
 // the *int if the comment name isn't present.
-func setMetaCommentIntValue(name string, metaComments map[string]bool, value *int) error {
+func setMetaCommentIntValue(name string, metaComments map[string]bool, value *int) {
 	for mc := range metaComments {
 		if strings.HasPrefix(mc, fmt.Sprintf("%s ", name)) {
-			return fmt.Errorf("format should be %s=<int>, got: %s", name, mc)
+			log.Errorf("format should be %s=<int>, got: %s", name, mc)
+			return
 		}
 		prefix := fmt.Sprintf("%s=", name)
 		if strings.HasPrefix(mc, prefix) {
@@ -408,27 +398,28 @@ func setMetaCommentIntValue(name string, metaComments map[string]bool, value *in
 			var err error
 			i, err := strconv.Atoi(strings.TrimSpace(intStr))
 			if err != nil {
-				return fmt.Errorf("error parsing %s value %q (skipping): %v", name, intStr, err)
+				log.Errorf("error parsing %s value %q (skipping): %v", name, intStr, err)
+				return
 			}
 			*value = i
 		}
 	}
-	return nil
 }
 
 // For a MetaComment in the form comment_name=<string> returns the strings.
-func getMetaCommentStringValues(name string, metaComments map[string]bool) ([]string, error) {
+func getMetaCommentStringValues(name string, metaComments map[string]bool) []string {
 	var vs []string
 	for mc := range metaComments {
 		if strings.HasPrefix(mc, fmt.Sprintf("%s ", name)) {
-			return nil, fmt.Errorf("format should be %s=<string>, got: %s", name, mc)
+			log.Errorf("format should be %s=<string>, got: %s", name, mc)
+			continue
 		}
 		prefix := fmt.Sprintf("%s=", name)
 		if strings.HasPrefix(mc, prefix) {
 			vs = append(vs, strings.TrimSpace(strings.TrimPrefix(mc, prefix)))
 		}
 	}
-	return vs, nil
+	return vs
 }
 
 func newParser(in []byte, c Config) (*parser, error) {
@@ -1076,24 +1067,19 @@ func RemoveDuplicates(nodes []*ast.Node) {
 	}
 }
 
-func wrapStrings(nodes []*ast.Node, depth int, c Config) error {
+func wrapStrings(nodes []*ast.Node, depth int, c Config) {
 	if c.WrapStringsAtColumn == 0 {
-		return nil
+		return
 	}
 	for _, nd := range nodes {
 		if nd.ChildrenSameLine {
 			continue
 		}
 		if needsWrapping(nd, depth, c) {
-			if err := wrapLines(nd, depth, c); err != nil {
-				return err
-			}
+			wrapLines(nd, depth, c)
 		}
-		if err := wrapStrings(nd.Children, depth+1, c); err != nil {
-			return err
-		}
+		wrapStrings(nd.Children, depth+1, c)
 	}
-	return nil
 }
 
 func needsWrapping(nd *ast.Node, depth int, c Config) bool {
@@ -1129,7 +1115,7 @@ func needsWrapping(nd *ast.Node, depth int, c Config) bool {
 // If the Values of this Node constitute a string, and if Config.WrapStringsAtColumn > 0, then wrap
 // the string so each line is within the specified columns. Wraps only the current Node (does not
 // recurse into Children).
-func wrapLines(nd *ast.Node, depth int, c Config) error {
+func wrapLines(nd *ast.Node, depth int, c Config) {
 	// This function looks at the unquoted ast.Value.Value string (i.e., with each Value's wrapping
 	// quote chars removed). We need to remove these quotes, since otherwise they'll be re-flowed into
 	// the body of the text.
@@ -1138,7 +1124,8 @@ func wrapLines(nd *ast.Node, depth int, c Config) error {
 
 	str, err := unquote.Raw(nd)
 	if err != nil {
-		return fmt.Errorf("skipping string wrapping on node %q (error unquoting string): %v", nd.Name, err)
+		log.Errorf("skipping string wrapping on node %q (error unquoting string): %v", nd.Name, err)
+		return
 	}
 
 	// Remove one from the max length since a trailing space may be added below.
@@ -1175,7 +1162,6 @@ func wrapLines(nd *ast.Node, depth int, c Config) error {
 	}
 
 	nd.Values = newValues
-	return nil
 }
 
 func fixQuotes(s string) string {
