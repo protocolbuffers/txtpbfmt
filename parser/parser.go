@@ -132,27 +132,6 @@ var tagRegex = regexp.MustCompile(`<.*>`)
 
 const indentSpaces = "  "
 
-func getMetaComments(in []byte) map[string]bool {
-	metaComments := map[string]bool{}
-	scanner := bufio.NewScanner(bytes.NewReader(in))
-	for scanner.Scan() {
-		line := scanner.Text()
-		if len(line) == 0 {
-			continue
-		}
-		if line[0] != byte('#') {
-			break // only process the leading comment block
-		}
-		colon := strings.IndexByte(line, byte(':'))
-		if colon > 1 && strings.TrimSpace(line[1:colon]) == "txtpbfmt" {
-			for _, s := range strings.Split(line[colon+1:], ",") {
-				metaComments[strings.TrimSpace(s)] = true
-			}
-		}
-	}
-	return metaComments
-}
-
 // Format formats a text proto file preserving comments.
 func Format(in []byte) ([]byte, error) {
 	return FormatWithConfig(in, defConfig)
@@ -343,83 +322,87 @@ func parseWithMetaCommentConfig(in []byte, c Config) ([]*ast.Node, error) {
 	return nodes, nil
 }
 
-func addMetaCommentsToConfig(in []byte, c *Config) {
-	metaComments := getMetaComments(in)
-	if metaComments["allow_triple_quoted_strings"] {
+// There are two types of MetaComment, one in the format of <key>=<val> and the other one doesn't
+// have the equal sign. Currently there are only two MetaComments that are in the former format:
+//
+//	"sort_repeated_fields_by_subfield": If this appears multiple times, then they will all be added
+//	to the config and the order is perserved.
+//	"wrap_strings_at_column": The <val> is expected to be an integer. If it is not, then it will be
+//	ignored. If this appears multiple times, only the last one saved.
+func addToConfig(metaComment string, c *Config) {
+	// Test if a MetaComment is in the format of <key>=<val>.
+	key, val, hasEqualSign := strings.Cut(metaComment, "=")
+	switch key {
+	case "allow_triple_quoted_strings":
 		c.AllowTripleQuotedStrings = true
-	}
-	if metaComments["allow_unnamed_nodes_everywhere"] {
+	case "allow_unnamed_nodes_everywhere":
 		c.AllowUnnamedNodesEverywhere = true
-	}
-	if metaComments["disable"] {
+	case "disable":
 		c.Disable = true
-	}
-	if metaComments["expand_all_children"] {
+	case "expand_all_children":
 		c.ExpandAllChildren = true
-	}
-	if metaComments["preserve_angle_brackets"] {
+	case "preserve_angle_brackets":
 		c.PreserveAngleBrackets = true
-	}
-	if metaComments["remove_duplicate_values_for_repeated_fields"] {
+	case "remove_duplicate_values_for_repeated_fields":
 		c.RemoveDuplicateValuesForRepeatedFields = true
-	}
-	if metaComments["skip_all_colons"] {
+	case "skip_all_colons":
 		c.SkipAllColons = true
-	}
-	if metaComments["smartquotes"] {
+	case "smartquotes":
 		c.SmartQuotes = true
-	}
-	if metaComments["sort_fields_by_field_name"] {
+	case "sort_fields_by_field_name":
 		c.SortFieldsByFieldName = true
-	}
-	if metaComments["sort_repeated_fields_by_content"] {
+	case "sort_repeated_fields_by_content":
 		c.SortRepeatedFieldsByContent = true
-	}
-	for _, sf := range getMetaCommentStringValues("sort_repeated_fields_by_subfield", metaComments) {
-		c.SortRepeatedFieldsBySubfield = append(c.SortRepeatedFieldsBySubfield, sf)
-	}
-	if metaComments["wrap_html_strings"] {
+	case "wrap_html_strings":
 		c.WrapHTMLStrings = true
-	}
-	setMetaCommentIntValue("wrap_strings_at_column", metaComments, &c.WrapStringsAtColumn)
-}
-
-// For a MetaComment in the form comment_name=<int> set *int to the value. Will not change
-// the *int if the comment name isn't present.
-func setMetaCommentIntValue(name string, metaComments map[string]bool, value *int) {
-	for mc := range metaComments {
-		if strings.HasPrefix(mc, fmt.Sprintf("%s ", name)) {
-			log.Errorf("format should be %s=<int>, got: %s", name, mc)
+	case "sort_repeated_fields_by_subfield":
+		// Take all the subfields and the subfields in order as tie breakers.
+		if !hasEqualSign {
+			log.Errorf("format should be %s=<string>, got: %s", key, metaComment)
 			return
 		}
-		prefix := fmt.Sprintf("%s=", name)
-		if strings.HasPrefix(mc, prefix) {
-			intStr := strings.TrimPrefix(mc, prefix)
-			var err error
-			i, err := strconv.Atoi(strings.TrimSpace(intStr))
-			if err != nil {
-				log.Errorf("error parsing %s value %q (skipping): %v", name, intStr, err)
-				return
-			}
-			*value = i
+		c.SortRepeatedFieldsBySubfield = append(c.SortRepeatedFieldsBySubfield, val)
+	case "wrap_strings_at_column":
+		// If multiple of this MetaComment exists in the file, take the last one.
+		if !hasEqualSign {
+			log.Errorf("format should be %s=<int>, got: %s", key, metaComment)
+			return
 		}
+		i, err := strconv.Atoi(strings.TrimSpace(val))
+		if err != nil {
+			log.Errorf("error parsing %s value %q (skipping): %v", key, val, err)
+			return
+		}
+		c.WrapStringsAtColumn = i
+	default:
+		log.Errorf("unrecognized MetaComment: %s", metaComment)
+		return
 	}
 }
 
-// For a MetaComment in the form comment_name=<string> returns the strings.
-func getMetaCommentStringValues(name string, metaComments map[string]bool) []string {
-	var vs []string
-	for mc := range metaComments {
-		if strings.HasPrefix(mc, fmt.Sprintf("%s ", name)) {
-			log.Errorf("format should be %s=<string>, got: %s", name, mc)
+// Parses MetaComments and adds them to the configuration.
+func addMetaCommentsToConfig(in []byte, c *Config) {
+	scanner := bufio.NewScanner(bytes.NewReader(in))
+	for scanner.Scan() {
+		line := scanner.Text()
+		if len(line) == 0 {
 			continue
 		}
-		prefix := fmt.Sprintf("%s=", name)
-		if strings.HasPrefix(mc, prefix) {
-			vs = append(vs, strings.TrimSpace(strings.TrimPrefix(mc, prefix)))
+		if line[0] != byte('#') {
+			break // only process the leading comment block
+		}
+
+		// Look for comment lines in the format of "<key>:<value>", and process the lines with <key>
+		// equals to "txtpbfmt". It's assumed that the MetaComments are given in the format of:
+		// # txtpbfmt: <MetaComment 1>[, <MetaComment 2> ...]
+		key, value, hasColon := strings.Cut(line[1:], ":")  // Ignore the first '#'.
+		if hasColon && strings.TrimSpace(key) == "txtpbfmt" {
+			for _, s := range strings.Split(strings.TrimSpace(value), ",") {
+				metaComment := strings.TrimSpace(s)
+				addToConfig(metaComment, c)
+			}
 		}
 	}
-	return vs
 }
 
 func newParser(in []byte, c Config) (*parser, error) {

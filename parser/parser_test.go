@@ -1161,6 +1161,83 @@ presubmit: {
   }
 }
 `}, {
+		// In this test multiple subfields of `test` are given. The expected behavior is: first sort by
+		// test.id; in case of a tie, sort by test.type; in case of a tie again, sort by test.name.
+		name: "sort by multiple subfield values",
+		in: `# txtpbfmt: sort_repeated_fields_by_subfield=operation.name
+# txtpbfmt: sort_repeated_fields_by_subfield=test.id
+# txtpbfmt: sort_repeated_fields_by_subfield=test.type
+# txtpbfmt: sort_repeated_fields_by_subfield=test.name
+presubmit: {
+operation {
+  name: EDIT
+}
+operation {
+  name: ADD
+}
+test {
+  id: 4
+  name: bar
+  unrelated_field: 1
+  type: type_1
+}
+test {
+  id: 2
+  name: foo
+  unrelated_field: 3
+  type: type_2
+}
+test {
+  id: 2
+  name: baz
+  unrelated_field: 2
+  type: type_1
+}
+test {
+  id: 2
+  name: bar
+  unrelated_field: 1
+  type: type_2
+}
+}
+`,
+		out: `# txtpbfmt: sort_repeated_fields_by_subfield=operation.name
+# txtpbfmt: sort_repeated_fields_by_subfield=test.id
+# txtpbfmt: sort_repeated_fields_by_subfield=test.type
+# txtpbfmt: sort_repeated_fields_by_subfield=test.name
+presubmit: {
+  operation {
+    name: ADD
+  }
+  operation {
+    name: EDIT
+  }
+  test {
+    id: 2
+    name: baz
+    unrelated_field: 2
+    type: type_1
+  }
+  test {
+    id: 2
+    name: bar
+    unrelated_field: 1
+    type: type_2
+  }
+  test {
+    id: 2
+    name: foo
+    unrelated_field: 3
+    type: type_2
+  }
+  test {
+    id: 4
+    name: bar
+    unrelated_field: 1
+    type: type_1
+  }
+}
+`}, {
 		name: "sort and remove duplicates",
 		in: `# txtpbfmt: sort_fields_by_field_name
 # txtpbfmt: sort_repeated_fields_by_content
