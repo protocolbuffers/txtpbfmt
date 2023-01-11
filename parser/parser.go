@@ -699,7 +699,11 @@ func (p *parser) parse(isRoot bool) (result []*ast.Node, endPos ast.Position, er
 					if len(vals) != 1 {
 						return nil, ast.Position{}, fmt.Errorf("multiple-string value not supported (%v). Please add comma explicitly, see http://b/162070952", vals)
 					}
-					vals[0].PreComments = append(vals[0].PreComments, preComments...)
+					if len(preComments) > 0 {
+						// If we read preComments before readValues(), they should go first,
+						// but avoid copy overhead if there are none.
+						vals[0].PreComments = append(preComments, vals[0].PreComments...)
+					}
 
 					// Skip separator.
 					_, _ = p.skipWhiteSpaceAndReadComments(false /* multiLine */)
@@ -921,7 +925,7 @@ func (p *parser) readValues() ([]*ast.Value, error) {
 			}
 		}
 		vl := p.advance(i)
-		values = append(values, p.populateValue(vl, nil))
+		values = append(values, p.populateValue(vl, preComments))
 	}
 	if p.log {
 		p.log.Infof("values: %v", values)
