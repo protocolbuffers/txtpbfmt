@@ -1,5 +1,7 @@
 # Text Proto Formatter - Configuration
 
+<!--* freshness: { exempt: true } *-->
+
 `txtpbfmt` provides several configuration options that customize the specifics
 of the output format. These are configured by adding a comment line to top of
 the proto file (before the first non-empty non-comment line) of the form:
