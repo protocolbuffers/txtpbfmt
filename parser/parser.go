@@ -16,7 +16,6 @@ import (
 	"strconv"
 	"strings"
 
-	log "github.com/golang/glog"
 	"github.com/mitchellh/go-wordwrap"
 	"github.com/protocolbuffers/txtpbfmt/ast"
 	"github.com/protocolbuffers/txtpbfmt/unquote"
@@ -78,6 +77,26 @@ type Config struct {
 
 	// Use single quotes around strings that contain double but not single quotes.
 	SmartQuotes bool
+
+	// Logger enables logging when it is non-nil.
+	// If the log messages aren't going to be useful, it's best to leave Logger
+	// set to nil, as otherwise log messages will be constructed.
+	Logger Logger
+}
+
+func (c *Config) infof(format string, args ...any) {
+	if c.Logger != nil {
+		c.Logger.Infof(format, args...)
+	}
+}
+func (c *Config) infoLevel() bool {
+	return c.Logger != nil
+}
+
+// Logger is a small glog-like interface.
+type Logger interface {
+	// Infof is used for informative messages, for testing or debugging.
+	Infof(format string, args ...any)
 }
 
 // RootName contains a constant that can be used to identify the root of all Nodes.
@@ -119,7 +138,6 @@ type parser struct {
 	in     []byte
 	index  int
 	length int
-	log    log.Verbose
 	// Maps the index of '{' characters on 'in' that have the matching '}' on
 	// the same line to 'true'.
 	bracketSameLine map[int]bool
@@ -144,7 +162,7 @@ func FormatWithConfig(in []byte, c Config) ([]byte, error) {
 		return nil, err
 	}
 	if c.Disable {
-		log.Infoln("Ignored file with 'disable' comment.")
+		c.infof("Ignored file with 'disable' comment.")
 		return in, nil
 	}
 	nodes, err := parseWithMetaCommentConfig(in, c)
@@ -305,9 +323,9 @@ func parseWithMetaCommentConfig(in []byte, c Config) ([]*ast.Node, error) {
 	if err != nil {
 		return nil, err
 	}
-	if p.log {
-		p.log.Infof("p.in: %q", string(p.in))
-		p.log.Infof("p.length: %v", p.length)
+	if p.config.infoLevel() {
+		p.config.infof("p.in: %q", string(p.in))
+		p.config.infof("p.length: %v", p.length)
 	}
 	// Although unnamed nodes aren't strictly allowed, some formats represent a
 	// list of protos as a list of unnamed top-level nodes.
@@ -427,7 +445,6 @@ func newParser(in []byte, c Config) (*parser, error) {
 		in:              in,
 		index:           0,
 		length:          len(in),
-		log:             log.V(2),
 		bracketSameLine: bracketSameLine,
 		config:          c,
 		line:            1,
@@ -560,8 +577,8 @@ func (p *parser) parse(isRoot bool) (result []*ast.Node, endPos ast.Position, er
 
 		// Handle blank lines.
 		if blankLines > 1 {
-			if p.log {
-				p.log.Infof("blankLines: %v", blankLines)
+			if p.config.infoLevel() {
+				p.config.infof("blankLines: %v", blankLines)
 			}
 			comments = append([]string{""}, comments...)
 		}
@@ -598,8 +615,8 @@ func (p *parser) parse(isRoot bool) (result []*ast.Node, endPos ast.Position, er
 			Start:       startPos,
 			PreComments: comments,
 		}
-		if p.log {
-			p.log.Infof("PreComments: %q", strings.Join(nd.PreComments, "\n"))
+		if p.config.infoLevel() {
+			p.config.infof("PreComments: %q", strings.Join(nd.PreComments, "\n"))
 		}
 
 		// Skip white-space other than '\n', which is handled below.
@@ -641,8 +658,8 @@ func (p *parser) parse(isRoot bool) (result []*ast.Node, endPos ast.Position, er
 				return nil, ast.Position{}, fmt.Errorf("Failed to find a FieldName at %s", p.errorContext())
 			}
 		}
-		if p.log {
-			p.log.Infof("name: %q", nd.Name)
+		if p.config.infoLevel() {
+			p.config.infof("name: %q", nd.Name)
 		}
 		// Skip separator.
 		_, _ = p.skipWhiteSpaceAndReadComments(true /* multiLine */)
@@ -748,8 +765,8 @@ func (p *parser) parse(isRoot bool) (result []*ast.Node, endPos ast.Position, er
 				return nil, ast.Position{}, err
 			}
 		}
-		if p.log && p.index < p.length {
-			p.log.Infof("p.in[p.index]: %q", string(p.in[p.index]))
+		if p.config.infoLevel() && p.index < p.length {
+			p.config.infof("p.in[p.index]: %q", string(p.in[p.index]))
 		}
 		res = append(res, nd)
 	}
@@ -831,10 +848,10 @@ func (p *parser) skipWhiteSpaceAndReadComments(multiLine bool) ([]string, int) {
 		}
 	}
 	sep := p.advance(i)
-	if p.log {
-		p.log.Infof("sep: %q\np.index: %v", string(sep), p.index)
+	if p.config.infoLevel() {
+		p.config.infof("sep: %q\np.index: %v", string(sep), p.index)
 		if p.index < p.length {
-			p.log.Infof("p.in[p.index]: %q", string(p.in[p.index]))
+			p.config.infof("p.in[p.index]: %q", string(p.in[p.index]))
 		}
 	}
 	return comments, blankLines
@@ -932,8 +949,8 @@ func (p *parser) readValues() ([]*ast.Value, error) {
 		vl := p.advance(i)
 		values = append(values, p.populateValue(vl, preComments))
 	}
-	if p.log {
-		p.log.Infof("values: %v", values)
+	if p.config.infoLevel() {
+		p.config.infof("values: %v", values)
 	}
 	return values, nil
 }
@@ -966,8 +983,8 @@ func (p *parser) readTripleQuotedString() (*ast.Value, error) {
 }
 
 func (p *parser) populateValue(vl string, preComments []string) *ast.Value {
-	if p.log {
-		p.log.Infof("value: %q", vl)
+	if p.config.infoLevel() {
+		p.config.infof("value: %q", vl)
 	}
 	return &ast.Value{
 		Value:         vl,
@@ -978,8 +995,8 @@ func (p *parser) populateValue(vl string, preComments []string) *ast.Value {
 
 func (p *parser) readInlineComment() string {
 	inlineComment, _ := p.skipWhiteSpaceAndReadComments(false /* multiLine */)
-	if p.log {
-		p.log.Infof("inlineComment: %q", strings.Join(inlineComment, "\n"))
+	if p.config.infoLevel() {
+		p.config.infof("inlineComment: %q", strings.Join(inlineComment, "\n"))
 	}
 	if len(inlineComment) > 0 {
 		return inlineComment[0]
