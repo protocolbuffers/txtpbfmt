@@ -1,4 +1,5 @@
 // Open source parser tests.
+// N.b.: take care when editing this file, as it contains significant trailing whitespace.
 package parser
 
 import (
@@ -1902,7 +1903,7 @@ foo: """
 """
 `,
 	}, {
-		name: "WrapStrings",
+		name: "WrapStringsAtColumn",
 		config: Config{
 			WrapStringsAtColumn: 15,
 		},
@@ -1916,7 +1917,7 @@ s:
   "five"
 `,
 	}, {
-		name: "WrapStrings_inlineChildren",
+		name: "WrapStringsAtColumn_inlineChildren",
 		config: Config{
 			WrapStringsAtColumn: 14,
 		},
@@ -1941,7 +1942,7 @@ s:
 }
 `,
 	}, {
-		name: "WrapStrings_exactlyNumColumnsDoesNotWrap",
+		name: "WrapStringsAtColumn_exactlyNumColumnsDoesNotWrap",
 		config: Config{
 			WrapStringsAtColumn: 14,
 		},
@@ -1958,7 +1959,7 @@ s:
 }
 `,
 	}, {
-		name: "WrapStrings_numColumnsPlus1Wraps",
+		name: "WrapStringsAtColumn_numColumnsPlus1Wraps",
 		config: Config{
 			WrapStringsAtColumn: 14,
 		},
@@ -1981,7 +1982,7 @@ s:
 }
 `,
 	}, {
-		name: "WrapStrings_commentKeptWhenLinesReduced",
+		name: "WrapStringsAtColumn_commentKeptWhenLinesReduced",
 		config: Config{
 			WrapStringsAtColumn: 15,
 		},
@@ -2018,7 +2019,7 @@ s:
 }
 `,
 	}, {
-		name: "WrapStrings_doNotBreakLongWords",
+		name: "WrapStringsAtColumn_doNotBreakLongWords",
 		config: Config{
 			WrapStringsAtColumn: 15,
 		},
@@ -2027,7 +2028,7 @@ s:
 		out: `s: "one@two_three-four&five"
 `,
 	}, {
-		name: "WrapStrings_wrapHtml",
+		name: "WrapStringsAtColumn_wrapHtml",
 		config: Config{
 			WrapStringsAtColumn: 15,
 			WrapHTMLStrings:     true,
@@ -2040,7 +2041,7 @@ s:
   "<four>"
 `,
 	}, {
-		name: "WrapStrings_empty",
+		name: "WrapStringsAtColumn_empty",
 		config: Config{
 			WrapStringsAtColumn: 15,
 		},
@@ -2049,7 +2050,7 @@ s:
 		out: `s: 
 `,
 	}, {
-		name: "WrapStrings_doNoWrapHtmlByDefault",
+		name: "WrapStringsAtColumn_doNoWrapHtmlByDefault",
 		config: Config{
 			WrapStringsAtColumn: 15,
 		},
@@ -2058,7 +2059,7 @@ s:
 		out: `s: "one two three <four>"
 `,
 	}, {
-		name: "WrapStrings_metaComment",
+		name: "WrapStringsAtColumn_metaComment",
 		in: `# txtpbfmt: wrap_strings_at_column=15
 # txtpbfmt: wrap_html_strings
 s: "one two three <four>"
@@ -2071,7 +2072,7 @@ s:
   "<four>"
 `,
 	}, {
-		name: "WrapStrings_doNotWrapNonStrings",
+		name: "WrapStringsAtColumn_doNotWrapNonStrings",
 		config: Config{
 			WrapStringsAtColumn: 15,
 		},
@@ -2084,7 +2085,7 @@ i: 12345678901234567890
 r: [1, 2, 3, 4, 5, 6, 7, 8, 9, 0]
 `,
 	}, {
-		name: "WrapStrings_alreadyWrappedStringsAreNotRewrapped",
+		name: "WrapStringsAtColumn_alreadyWrappedStringsAreNotRewrapped",
 		config: Config{
 			WrapStringsAtColumn: 15,
 		},
@@ -2100,7 +2101,25 @@ r: [1, 2, 3, 4, 5, 6, 7, 8, 9, 0]
   "wrapped"
 `,
 	}, {
-		name: "WrapStrings_tripleQuotedStringsAreNotWrapped",
+		name: "WrapStringsAtColumn_alreadyWrappedStringsAreNotRewrappedUnlessSomeAreLonger",
+		config: Config{
+			WrapStringsAtColumn: 15,
+		},
+		in: `s:
+  "I "
+  "am already "
+  "wrapped"
+  " but I am not!"
+`,
+		out: `s:
+  "I am "
+  "already "
+  "wrapped "
+  "but I am "
+  "not!"
+`,
+	}, {
+		name: "WrapStringsAtColumn_tripleQuotedStringsAreNotWrapped",
 		config: Config{
 			WrapStringsAtColumn:      15,
 			AllowTripleQuotedStrings: true,
@@ -2110,6 +2129,155 @@ s2: '''six seven eight nine'''
 `,
 		out: `s1: """one two three four five"""
 s2: '''six seven eight nine'''
+`,
+	}, {
+		name: "WrapStringsAfterNewlines",
+		config: Config{
+			WrapStringsAfterNewlines: true,
+		},
+		in: `# Comments are not \n wrapped
+s: "one two \nthree four\nfive"
+`,
+		out: `# Comments are not \n wrapped
+s:
+  "one two \n"
+  "three four\n"
+  "five"
+`,
+	}, {
+		name: "WrapStringsAfterNewlines_motivatingExampleWithMarkup",
+		config: Config{
+			WrapStringsAfterNewlines: true,
+		},
+		in: `root {
+  doc: "<body>\n  <p>\n    Hello\n  </p>\n</body>\n"
+}
+`,
+		out: `root {
+  doc:
+    "<body>\n"
+    "  <p>\n"
+    "    Hello\n"
+    "  </p>\n"
+    "</body>\n"
+}
+`,
+	}, {
+		name: "WrapStringsAfterNewlines_inlineChildren",
+		config: Config{
+			WrapStringsAfterNewlines: true,
+		},
+		in: `root {
+  # inline children don't wrap
+  inner { inline: "89 1234" }
+  # Verify that skipping an inline string doesn't skip the rest of the file.
+  wrappable {
+    s: "will \nwrap"
+  }
+}
+`,
+		out: `root {
+  # inline children don't wrap
+  inner { inline: "89 1234" }
+  # Verify that skipping an inline string doesn't skip the rest of the file.
+  wrappable {
+    s:
+      "will \n"
+      "wrap"
+  }
+}
+`,
+	}, {
+		name: "WrapStringsAfterNewlines_noNewlineDoesNotWrap",
+		config: Config{
+			WrapStringsAfterNewlines: true,
+		},
+		in: `root {
+  inner {
+    s: "89 123"
+  }
+}
+`,
+		out: `root {
+  inner {
+    s: "89 123"
+  }
+}
+`,
+	}, {
+		name: "WrapStringsAfterNewlines_trailingNewlineDoesNotWrap",
+		config: Config{
+			WrapStringsAfterNewlines: true,
+		},
+		in: `root {
+  s: "89 123\n"
+}
+`,
+		out: `root {
+  s: "89 123\n"
+}
+`,
+	}, {
+		name: "WrapStringsAfterNewlines_trailingNewlineDoesNotLeaveSuperfluousEmptyString",
+		config: Config{
+			WrapStringsAfterNewlines: true,
+		},
+		in: `root {
+  s: "89\n123\n"
+}
+`,
+		out: `root {
+  s:
+    "89\n"
+    "123\n"
+}
+`,
+	}, {
+		name: "WrapStringsAfterNewlines_empty",
+		config: Config{
+			WrapStringsAfterNewlines: true,
+		},
+		in: `s: 
+`,
+		out: `s: 
+`,
+	}, {
+		name: "WrapStringsAfterNewlines_metaComment",
+		in: `# txtpbfmt: wrap_strings_after_newlines
+s: "one two \nthree\n four"
+`,
+		out: `# txtpbfmt: wrap_strings_after_newlines
+s:
+  "one two \n"
+  "three\n"
+  " four"
+`,
+	}, {
+		name: "WrapStringsAfterNewlines_alreadyWrappedStringsAreRewrapped",
+		config: Config{
+			WrapStringsAfterNewlines: true,
+		},
+		in: `s:
+  "I "
+  "am already\n"
+  "wrapped. \nBut this was not."
+`,
+		out: `s:
+  "I am already\n"
+  "wrapped. \n"
+  "But this was not."
+`,
+	}, {
+		name: "WrapStringsAfterNewlines_tripleQuotedStringsAreNotWrapped",
+		config: Config{
+			WrapStringsAfterNewlines: true,
+			AllowTripleQuotedStrings: true,
+		},
+		in: `s1: """one two three four five"""
+s2: '''six seven \neight nine'''
+`,
+		out: `s1: """one two three four five"""
+s2: '''six seven \neight nine'''
 `,
 	}, {
 		name: "PreserveAngleBrackets",

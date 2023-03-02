@@ -71,6 +71,10 @@ type Config struct {
 	// (requires WrapStringsAtColumn to be set).
 	WrapHTMLStrings bool
 
+	// Wrap string field values after each newline.
+	// Should not be used with other Wrap* options.
+	WrapStringsAfterNewlines bool
+
 	// Whether angle brackets used instead of curly braces should be preserved
 	// when outputting a formatted textproto.
 	PreserveAngleBrackets bool
@@ -376,8 +380,6 @@ func addToConfig(metaComment string, c *Config) error {
 		c.SortFieldsByFieldName = true
 	case "sort_repeated_fields_by_content":
 		c.SortRepeatedFieldsByContent = true
-	case "wrap_html_strings":
-		c.WrapHTMLStrings = true
 	case "sort_repeated_fields_by_subfield":
 		// Take all the subfields and the subfields in order as tie breakers.
 		if !hasEqualSign {
@@ -394,6 +396,10 @@ func addToConfig(metaComment string, c *Config) error {
 			return fmt.Errorf("error parsing %s value %q (skipping): %v", key, val, err)
 		}
 		c.WrapStringsAtColumn = i
+	case "wrap_html_strings":
+		c.WrapHTMLStrings = true
+	case "wrap_strings_after_newlines":
+		c.WrapStringsAfterNewlines = true
 	default:
 		return fmt.Errorf("unrecognized MetaComment: %s", metaComment)
 	}
@@ -1077,15 +1083,20 @@ func RemoveDuplicates(nodes []*ast.Node) {
 }
 
 func wrapStrings(nodes []*ast.Node, depth int, c Config) error {
-	if c.WrapStringsAtColumn == 0 {
+	if c.WrapStringsAtColumn == 0 && !c.WrapStringsAfterNewlines {
 		return nil
 	}
 	for _, nd := range nodes {
 		if nd.ChildrenSameLine {
 			continue
 		}
-		if needsWrapping(nd, depth, c) {
-			if err := wrapLines(nd, depth, c); err != nil {
+		if c.WrapStringsAtColumn > 0 && needsWrappingAtColumn(nd, depth, c) {
+			if err := wrapLinesAtColumn(nd, depth, c); err != nil {
+				return err
+			}
+		}
+		if c.WrapStringsAfterNewlines && needsWrappingAfterNewlines(nd, c) {
+			if err := wrapLinesAfterNewlines(nd, c); err != nil {
 				return err
 			}
 		}
@@ -1096,7 +1107,7 @@ func wrapStrings(nodes []*ast.Node, depth int, c Config) error {
 	return nil
 }
 
-func needsWrapping(nd *ast.Node, depth int, c Config) bool {
+func needsWrappingAtColumn(nd *ast.Node, depth int, c Config) bool {
 	// Even at depth 0 we have a 2-space indent when the wrapped string is rendered on the line below
 	// the field name.
 	const lengthBuffer = 2
@@ -1129,7 +1140,7 @@ func needsWrapping(nd *ast.Node, depth int, c Config) bool {
 // If the Values of this Node constitute a string, and if Config.WrapStringsAtColumn > 0, then wrap
 // the string so each line is within the specified columns. Wraps only the current Node (does not
 // recurse into Children).
-func wrapLines(nd *ast.Node, depth int, c Config) error {
+func wrapLinesAtColumn(nd *ast.Node, depth int, c Config) error {
 	// This function looks at the unquoted ast.Value.Value string (i.e., with each Value's wrapping
 	// quote chars removed). We need to remove these quotes, since otherwise they'll be re-flowed into
 	// the body of the text.
@@ -1152,7 +1163,7 @@ func wrapLines(nd *ast.Node, depth int, c Config) error {
 	var line string
 	for i, line = range lines {
 		var v *ast.Value
-		if len(nd.Values) > i {
+		if i < len(nd.Values) {
 			v = nd.Values[i]
 		} else {
 			v = &ast.Value{}
@@ -1164,6 +1175,67 @@ func wrapLines(nd *ast.Node, depth int, c Config) error {
 		newValues = append(newValues, v)
 	}
 
+	postWrapCollectComments(nd, i)
+
+	nd.Values = newValues
+	return nil
+}
+
+func needsWrappingAfterNewlines(nd *ast.Node, c Config) bool {
+	for _, v := range nd.Values {
+		if len(v.Value) >= 3 && (strings.HasPrefix(v.Value, `'''`) || strings.HasPrefix(v.Value, `"""`)) {
+			// Don't wrap triple-quoted strings
+			return false
+		}
+		if len(v.Value) > 0 && v.Value[0] != '\'' && v.Value[0] != '"' {
+			// Only wrap strings
+			return false
+		}
+		// Check that there is at least one newline, *not* at the end of the string.
+		if i := strings.Index(v.Value, `\n`); i >= 0 && i < len(v.Value)-3 {
+			return true
+		}
+	}
+	return false
+}
+
+// If the Values of this Node constitute a string, and if Config.WrapStringsAfterNewlines,
+// then wrap the string so each line ends with a newline.
+// Wraps only the current Node (does not recurse into Children).
+func wrapLinesAfterNewlines(nd *ast.Node, c Config) error {
+	str, err := unquote.Raw(nd)
+	if err != nil {
+		return fmt.Errorf("skipping string wrapping on node %q (error unquoting string): %v", nd.Name, err)
+	}
+
+	wrappedStr := strings.ReplaceAll(str, `\n`, `\n`+"\n")
+	// Avoid empty string at end after splitting in case str ended with an (escaped) newline.
+	wrappedStr = strings.TrimSuffix(wrappedStr, "\n")
+	lines := strings.Split(wrappedStr, "\n")
+	newValues := make([]*ast.Value, 0, len(lines))
+	// The Value objects have more than just the string in them. They also have any leading and
+	// trailing comments. To maintain these comments we recycle the existing Value objects if
+	// possible.
+	var i int
+	var line string
+	for i, line = range lines {
+		var v *ast.Value
+		if i < len(nd.Values) {
+			v = nd.Values[i]
+		} else {
+			v = &ast.Value{}
+		}
+		v.Value = fmt.Sprintf(`"%s"`, line)
+		newValues = append(newValues, v)
+	}
+
+	postWrapCollectComments(nd, i)
+
+	nd.Values = newValues
+	return nil
+}
+
+func postWrapCollectComments(nd *ast.Node, i int) {
 	for i++; i < len(nd.Values); i++ {
 		// If this executes, then the text was wrapped into less lines of text (less Values) than
 		// previously. If any of these had comments on them, we collect them so they are not lost.
@@ -1173,9 +1245,6 @@ func wrapLines(nd *ast.Node, depth int, c Config) error {
 			nd.PostValuesComments = append(nd.PostValuesComments, v.InlineComment)
 		}
 	}
-
-	nd.Values = newValues
-	return nil
 }
 
 func fixQuotes(s string) string {
