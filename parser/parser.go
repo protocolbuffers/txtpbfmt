@@ -668,10 +668,10 @@ func (p *parser) parse(isRoot bool) (result []*ast.Node, endPos ast.Position, er
 			p.config.infof("name: %q", nd.Name)
 		}
 		// Skip separator.
-		_, _ = p.skipWhiteSpaceAndReadComments(true /* multiLine */)
+		preCommentsBeforeColon, _ := p.skipWhiteSpaceAndReadComments(true /* multiLine */)
 		nd.SkipColon = !p.consume(':')
 		previousPos := p.position()
-		_, _ = p.skipWhiteSpaceAndReadComments(true /* multiLine */)
+		preCommentsAfterColon, _ := p.skipWhiteSpaceAndReadComments(true /* multiLine */)
 
 		if p.consume('{') || p.consume('<') {
 			if p.config.SkipAllColons {
@@ -692,7 +692,12 @@ func (p *parser) parse(isRoot bool) (result []*ast.Node, endPos ast.Position, er
 			openBracketLine := p.line
 
 			// Skip separator.
-			preComments := p.readContinuousBlocksOfComments()
+			preCommentsAfterListStart := p.readContinuousBlocksOfComments()
+
+			var preComments []string
+			preComments = append(preComments, preCommentsBeforeColon...)
+			preComments = append(preComments, preCommentsAfterColon...)
+			preComments = append(preComments, preCommentsAfterListStart...)
 
 			if p.nextInputIs('{') {
 				// Handle list of nodes.
