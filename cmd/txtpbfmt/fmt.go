@@ -23,12 +23,14 @@ var (
 	skipAllColons            = flag.Bool("skip_all_colons", false, "Skip colons whenever possible.")
 	allowTripleQuotedStrings = flag.Bool("allow_triple_quoted_strings", false,
 		`Allow Python-style """ or ''' delimited strings in input.`)
+	stdinDisplayPath = flag.String("stdin_display_path", "<stdin>",
+		"The path to display when referring to the content read from stdin.")
 )
 
-const stdinPath = "<stdin>"
+const stdinPlaceholderPath = "<stdin>"
 
 func read(path string) ([]byte, error) {
-	if path == stdinPath {
+	if path == stdinPlaceholderPath {
 		return ioutil.ReadAll(bufio.NewReader(os.Stdin))
 	}
 	return ioutil.ReadFile(path)
@@ -50,7 +52,7 @@ func main() {
 	flag.Parse()
 	paths := flag.Args()
 	if len(paths) == 0 {
-		paths = append(paths, stdinPath)
+		paths = append(paths, stdinPlaceholderPath)
 	}
 	log.Info("paths: ", paths)
 	errs := 0
@@ -58,7 +60,14 @@ func main() {
 		if strings.HasPrefix(path, "//depot/google3/") {
 			path = strings.Replace(path, "//depot/google3/", "", 1)
 		}
-		log.Info("path ", path)
+		displayPath := path
+		if path == stdinPlaceholderPath {
+			displayPath = *stdinDisplayPath
+			log.Info("path ", path, " displayed as ", displayPath)
+		} else {
+			log.Info("path ", path)
+		}
+
 		content, err := read(path)
 		if os.IsNotExist(err) {
 			log.Error("Ignoring path: ", err)
@@ -80,18 +89,18 @@ func main() {
 			Logger:                   logger,
 		})
 		if err != nil {
-			errorf("parser.Format for path %v with content %q returned err %v", path, contentForLogging(content), err)
+			errorf("parser.Format for path %v with content %q returned err %v", displayPath, contentForLogging(content), err)
 			errs++
 			continue
 		}
-		log.V(2).Infof("New content for path %s: %q", path, newContent)
+		log.V(2).Infof("New content for path %s: %q", displayPath, newContent)
 
-		if path == stdinPath {
+		if path == stdinPlaceholderPath {
 			fmt.Print(string(newContent))
 			continue
 		}
 		if bytes.Equal(content, newContent) {
-			log.Info("No change for path ", path)
+			log.Info("No change for path ", displayPath)
 			continue
 		}
 		if *dryRun {
