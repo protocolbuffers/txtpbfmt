@@ -2280,6 +2280,38 @@ s2: '''six seven \neight nine'''
 s2: '''six seven \neight nine'''
 `,
 	}, {
+		name: "WrapStringsAfterNewlines_tooManyEscapesDoesNotWrap",
+		config: Config{
+			WrapStringsAfterNewlines: true,
+		},
+		in: `s: "7\nsev\xADen\x00"
+`,
+		out: `s: "7\nsev\xADen\x00"
+`,
+	}, {
+		name: "WrapStringsAfterNewlines_wayTooManyEscapesDoesNotWrap",
+		config: Config{
+			WrapStringsAfterNewlines: true,
+		},
+		in: `s: "ﾭ\xde\x00\x00\x00\x08\n(\x02\n\x0b\x00\x07\x01h\x0c\x14\x01"
+`,
+		out: `s: "ﾭ\xde\x00\x00\x00\x08\n(\x02\n\x0b\x00\x07\x01h\x0c\x14\x01"
+`,
+	}, {
+		name: "WrapStringsAfterNewlines_aFewEscapesStillWrap",
+		config: Config{
+			WrapStringsAfterNewlines: true,
+		},
+		in: `s: "aaaaaaaaaa \n bbbbbbbbbb \n cccccccccc \n dddddddddd \n eeeeeeeeee\x00 \n"
+`,
+		out: `s:
+  "aaaaaaaaaa \n"
+  " bbbbbbbbbb \n"
+  " cccccccccc \n"
+  " dddddddddd \n"
+  " eeeeeeeeee\x00 \n"
+`,
+	}, {
 		name: "PreserveAngleBrackets",
 		config: Config{
 			PreserveAngleBrackets: true,

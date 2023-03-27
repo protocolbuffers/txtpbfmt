@@ -1186,6 +1186,9 @@ func wrapLinesAtColumn(nd *ast.Node, depth int, c Config) error {
 	return nil
 }
 
+// N.b.: this will incorrectly match `\\\\x`, which hopefully is rare.
+var byteEscapeRegex = regexp.MustCompile(`\\x`)
+
 func needsWrappingAfterNewlines(nd *ast.Node, c Config) bool {
 	for _, v := range nd.Values {
 		if len(v.Value) >= 3 && (strings.HasPrefix(v.Value, `'''`) || strings.HasPrefix(v.Value, `"""`)) {
@@ -1194,6 +1197,11 @@ func needsWrappingAfterNewlines(nd *ast.Node, c Config) bool {
 		}
 		if len(v.Value) > 0 && v.Value[0] != '\'' && v.Value[0] != '"' {
 			// Only wrap strings
+			return false
+		}
+		byteEscapeCount := len(byteEscapeRegex.FindAllStringIndex(v.Value, -1))
+		if float64(byteEscapeCount) > float64(len(v.Value))*0.1 {
+			// Only wrap UTF-8 looking strings (where less than ~10% of the characters are escaped).
 			return false
 		}
 		// Check that there is at least one newline, *not* at the end of the string.
