@@ -18,13 +18,20 @@ import (
 
 var (
 	// Top level flags.
-	dryRun                   = flag.Bool("dry_run", false, "Enable dry run mode.")
-	expandAllChildren        = flag.Bool("expand_all_children", false, "Expand all children irrespective of initial state.")
-	skipAllColons            = flag.Bool("skip_all_colons", false, "Skip colons whenever possible.")
-	allowTripleQuotedStrings = flag.Bool("allow_triple_quoted_strings", false,
-		`Allow Python-style """ or ''' delimited strings in input.`)
-	stdinDisplayPath = flag.String("stdin_display_path", "<stdin>",
-		"The path to display when referring to the content read from stdin.")
+	dryRun                                 = flag.Bool("dry_run", false, "Enable dry run mode.")
+	expandAllChildren                      = flag.Bool("expand_all_children", false, "Expand all children irrespective of initial state.")
+	skipAllColons                          = flag.Bool("skip_all_colons", false, "Skip colons whenever possible.")
+	sortFieldsByFieldName                  = flag.Bool("sort_fields_by_field_name", false, "Sort fields by field name.")
+	sortRepeatedFieldsByContent            = flag.Bool("sort_repeated_fields_by_content", false, "Sort adjacent scalar fields of the same field name by their contents.")
+	sortRepeatedFieldsBySubfield           = flag.String("sort_repeated_fields_by_subfield", "", "Sort adjacent message fields of the given field name by the contents of the given subfield.")
+	removeDuplicateValuesForRepeatedFields = flag.Bool("remove_duplicate_values_for_repeated_fields", false, "Remove lines that have the same field name and scalar value as another.")
+	allowTripleQuotedStrings               = flag.Bool("allow_triple_quoted_strings", false, `Allow Python-style """ or ''' delimited strings in input.`)
+	stdinDisplayPath                       = flag.String("stdin_display_path", "<stdin>", "The path to display when referring to the content read from stdin.")
+	wrapStringsAtColumn                    = flag.Int("wrap_strings_at_column", 0, "Max columns for string field values. (0 means no wrap.)")
+	wrapHTMLStrings                        = flag.Bool("wrap_html_strings", false, "Wrap strings containing HTML tags. (Requires wrap_strings_at_column > 0.)")
+	wrapStringsAfterNewlines               = flag.Bool("wrap_strings_after_newlines", false, "Wrap strings after newlines.")
+	preserveAngleBrackets                  = flag.Bool("preserve_angle_brackets", false, "Preserve angle brackets instead of converting to curly braces.")
+	smartQuotes                            = flag.Bool("smart_quotes", false, "Use single quotes around strings that contain double but not single quotes.")
 )
 
 const stdinPlaceholderPath = "<stdin>"
@@ -83,10 +90,19 @@ func main() {
 			logger = l
 		}
 		newContent, err := parser.FormatWithConfig(content, parser.Config{
-			ExpandAllChildren:        *expandAllChildren,
-			SkipAllColons:            *skipAllColons,
-			AllowTripleQuotedStrings: *allowTripleQuotedStrings,
-			Logger:                   logger,
+			ExpandAllChildren:                      *expandAllChildren,
+			SkipAllColons:                          *skipAllColons,
+			SortFieldsByFieldName:                  *sortFieldsByFieldName,
+			SortRepeatedFieldsByContent:            *sortRepeatedFieldsByContent,
+			SortRepeatedFieldsBySubfield:           strings.Split(*sortRepeatedFieldsBySubfield, ","),
+			RemoveDuplicateValuesForRepeatedFields: *removeDuplicateValuesForRepeatedFields,
+			AllowTripleQuotedStrings:               *allowTripleQuotedStrings,
+			WrapStringsAtColumn:                    *wrapStringsAtColumn,
+			WrapHTMLStrings:                        *wrapHTMLStrings,
+			WrapStringsAfterNewlines:               *wrapStringsAfterNewlines,
+			PreserveAngleBrackets:                  *preserveAngleBrackets,
+			SmartQuotes:                            *smartQuotes,
+			Logger:                                 logger,
 		})
 		if err != nil {
 			errorf("parser.Format for path %v with content %q returned err %v", displayPath, contentForLogging(content), err)
