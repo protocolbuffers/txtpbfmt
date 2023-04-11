@@ -1337,13 +1337,25 @@ func DebugFormat(nodes []*ast.Node, depth int) string {
 func Pretty(nodes []*ast.Node, depth int) string {
 	var result strings.Builder
 	formatter{&result}.writeNodes(removeDeleted(nodes), depth, false /* isSameLine */, false /* asListItems */)
-	return result.String()
+
+	// Trim excess trailing newlines.
+	res := result.String()
+	if strings.HasSuffix(res, "\n\n") {
+		return res[:len(res)-1]
+	}
+	return res
 }
 
 func out(nodes []*ast.Node) []byte {
 	var result bytes.Buffer
 	formatter{&result}.writeNodes(removeDeleted(nodes), 0, false /* isSameLine */, false /* asListItems */)
-	return result.Bytes()
+
+	// Trim excess trailing newlines.
+	res := result.Bytes()
+	if bytes.HasSuffix(res, []byte("\n\n")) {
+		return res[:len(res)-1]
+	}
+	return res
 }
 
 // UnsortedFieldCollector collects UnsortedFields during parsing.
