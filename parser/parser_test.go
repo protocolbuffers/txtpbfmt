@@ -335,7 +335,6 @@ presubmit: {
   review_notify: "address"  # review same line comment 2
 
 }
-
 `}, {
 		name: "empty children",
 		in: `
@@ -359,7 +358,6 @@ presubmit: {
 # presubmit comment 2
 presubmit: {
 }
-
 `}, {
 		name: "list notation with []",
 		in: `
@@ -605,7 +603,6 @@ tricorder: {
 options:
   "first line"  # first comment
   "second line"  # second comment
-
 `}, {
 		name: "all kinds of inline comments",
 		in: `# presubmit pre comment 1
@@ -826,7 +823,6 @@ check_tests: {
 `,
 		out: `presubmit {
 }
-
 `}, {
 		name: "template directive",
 		in: `[ext]: {
@@ -2355,6 +2351,37 @@ foo {
 foo: "\"bar\""`,
 		out: `# txtpbfmt: smartquotes
 foo: '"bar"'
+`,
+	}, {
+		name: "blank lines",
+		in: `
+
+
+# comment 0
+# comment 1
+
+
+
+# comment 2
+
+# comment 3
+blah {
+
+
+
+}
+
+
+`,
+		out: `# comment 0
+# comment 1
+
+# comment 2
+
+# comment 3
+blah {
+
+}
 `,
 	},
 	}
