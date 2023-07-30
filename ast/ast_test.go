@@ -267,6 +267,17 @@ func TestFixInline(t *testing.T) {
 }`, add: ``, want: `foo {
 }
 `}, {in: `foo <>`, add: ``, want: `foo {}
+`}, {in: `foo {
+  bar: [
+    1,
+    2
+  ]
+}`, add: ``, want: `foo {
+  bar: [
+    1,
+    2
+  ]
+}
 `}}
 	for _, input := range inputs {
 		nodes, err := parser.Parse([]byte(input.in))
@@ -278,12 +289,14 @@ func TestFixInline(t *testing.T) {
 			t.Errorf("Parse %v returned no nodes", input.in)
 			continue
 		}
-		add, err := parser.Parse([]byte(input.add))
-		if err != nil {
-			t.Errorf("Parse %v returned err %v", input.in, err)
-			continue
+		if input.add != "" {
+			add, err := parser.Parse([]byte(input.add))
+			if err != nil {
+				t.Errorf("Parse %v returned err %v", input.in, err)
+				continue
+			}
+			nodes[0].Children = add
 		}
-		nodes[0].Children = add
 		nodes[0].Fix()
 		got := parser.Pretty(nodes, 0)
 		if diff := diff.Diff(input.want, got); diff != "" {
