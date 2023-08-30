@@ -152,6 +152,15 @@ func ByFieldValue(_, ni, nj *Node, isWholeSlice bool) bool {
 	return ni.Values[0].Value < nj.Values[0].Value
 }
 
+func getChildValueByFieldSubfield(field, subfield string, n *Node) *Value {
+	if field != "" {
+		if n.Name != field {
+			return nil
+		}
+	}
+	return n.getChildValue(subfield)
+}
+
 // ByFieldSubfield returns a NodeLess function that orders adjacent message nodes with the given
 // field name by the given subfield name value. If no field name is provided, it compares the
 // subfields of any adjacent nodes with matching names.
@@ -160,18 +169,15 @@ func ByFieldSubfield(field, subfield string) NodeLess {
 		if isWholeSlice {
 			return false
 		}
-		if ni.Name != nj.Name {
+		vi := getChildValueByFieldSubfield(field, subfield, ni)
+		vj := getChildValueByFieldSubfield(field, subfield, nj)
+		if vi == nil {
+			return vj != nil
+		}
+		if vj == nil {
 			return false
 		}
-		if field != "" && ni.Name != field {
-			return false
-		}
-		niChildValue := ni.getChildValue(subfield)
-		njChildValue := nj.getChildValue(subfield)
-		if niChildValue == nil || njChildValue == nil {
-			return false
-		}
-		return niChildValue.Value < njChildValue.Value
+		return vi.Value < vj.Value
 	}
 }
 
