@@ -1422,6 +1422,27 @@ func nodeFilterFunction(c Config) NodeFilterFunction {
 	return nil
 }
 
+func getNodePriorityForByFieldOrder(parent, node *ast.Node, name string, priorities map[string]int, unsortedCollector UnsortedFieldCollectorFunc) *int {
+	if parent != nil && parent.Name != name {
+		return nil
+	}
+	if parent == nil && name != RootName {
+		return nil
+	}
+	// CommentOnly nodes don't set priority below, and default to MaxInt, which keeps them at the bottom
+	prio := math.MaxInt
+
+	// Unknown fields will get the int nil value of 0 from the order map, and bubble to the top.
+	if !node.IsCommentOnly() {
+		var ok bool
+		prio, ok = priorities[node.Name]
+		if !ok {
+			unsortedCollector(node.Name, node.Start.Line, parent.Name)
+		}
+	}
+	return &prio
+}
+
 // ByFieldOrder returns a NodeLess function that orders fields within a node named name
 // by the order specified in fieldOrder. Nodes sorted but not specified by the field order
 // are bubbled to the top and reported to unsortedCollector.
@@ -1434,27 +1455,15 @@ func ByFieldOrder(name string, fieldOrder []string, unsortedCollector UnsortedFi
 		if !isWholeSlice {
 			return false
 		}
-		if parent != nil && parent.Name != name {
+		vi := getNodePriorityForByFieldOrder(parent, ni, name, priorities, unsortedCollector)
+		vj := getNodePriorityForByFieldOrder(parent, nj, name, priorities, unsortedCollector)
+		if vi == nil {
+			return vj != nil
+		}
+		if vj == nil {
 			return false
 		}
-		if parent == nil && name != RootName {
-			return false
-		}
-		getNodePriority := func(node *ast.Node) int {
-			// CommentOnly nodes don't set priority below, and default to MaxInt, which keeps them at the bottom
-			prio := math.MaxInt
-
-			// Unknown fields will get the int nil value of 0 from the order map, and bubble to the top.
-			if !node.IsCommentOnly() {
-				var ok bool
-				prio, ok = priorities[node.Name]
-				if !ok {
-					unsortedCollector(node.Name, node.Start.Line, parent.Name)
-				}
-			}
-			return prio
-		}
-		return getNodePriority(ni) < getNodePriority(nj)
+		return *vi < *vj
 	}
 }
 
