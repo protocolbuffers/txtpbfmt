@@ -12,7 +12,6 @@ import (
 	"fmt"
 	"math"
 	"regexp"
-	"sort"
 	"strconv"
 	"strings"
 
@@ -1396,7 +1395,7 @@ func nodeSortFunction(c Config) NodeSortFunction {
 	}
 	if sorter != nil {
 		return func(parent *ast.Node, ns []*ast.Node) error {
-			sort.Stable(ast.SortableNodesWithParent(parent, ns, sorter))
+			ast.SortNodes(parent, ns, sorter)
 			if c.RequireFieldSortOrderToMatchAllFieldsInNode {
 				return unsortedFieldCollector.asError()
 			}
@@ -1431,7 +1430,10 @@ func ByFieldOrder(name string, fieldOrder []string, unsortedCollector UnsortedFi
 	for i, fieldName := range fieldOrder {
 		priorities[fieldName] = i + 1
 	}
-	return func(parent, ni, nj *ast.Node) bool {
+	return func(parent, ni, nj *ast.Node, isWholeSlice bool) bool {
+		if !isWholeSlice {
+			return false
+		}
 		if parent != nil && parent.Name != name {
 			return false
 		}

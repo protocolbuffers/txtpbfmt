@@ -1276,6 +1276,49 @@ presubmit: {
   }
 }
 `}, {
+		name: "multiple groups of repeated fields",
+		in: `# txtpbfmt: sort_repeated_fields_by_content
+# txtpbfmt: sort_repeated_fields_by_subfield=id
+
+# field b
+field: "b"
+
+# field a
+field: "a"
+message: { id: "b" }
+message: { id: "a" }
+
+# new group
+
+# field b
+field: "b"
+
+# field a
+field: "a"
+message: { id: "b" }
+message: { id: "a" }
+`,
+		out: `# txtpbfmt: sort_repeated_fields_by_content
+# txtpbfmt: sort_repeated_fields_by_subfield=id
+
+# field a
+field: "a"
+
+# field b
+field: "b"
+message: { id: "a" }
+message: { id: "b" }
+
+# new group
+
+# field a
+field: "a"
+
+# field b
+field: "b"
+message: { id: "a" }
+message: { id: "b" }
+`}, {
 		name: "trailing comma / semicolon",
 		in: `dict: {
 	arg: {

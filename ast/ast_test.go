@@ -1,7 +1,6 @@
 package ast_test
 
 import (
-	"sort"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -11,10 +10,10 @@ import (
 )
 
 func TestChainNodeLess(t *testing.T) {
-	byFirstChar := func(_, ni, nj *ast.Node) bool {
+	byFirstChar := func(_, ni, nj *ast.Node, isWholeSlice bool) bool {
 		return ni.Name[0] < nj.Name[0]
 	}
-	bySecondChar := func(_, ni, nj *ast.Node) bool {
+	bySecondChar := func(_, ni, nj *ast.Node, isWholeSlice bool) bool {
 		return ni.Name[1] < nj.Name[1]
 	}
 	tests := []struct {
@@ -54,7 +53,7 @@ func TestChainNodeLess(t *testing.T) {
 		for _, n := range names {
 			ns = append(ns, &ast.Node{Name: n})
 		}
-		sort.Stable(ast.SortableNodes(ns, less))
+		ast.SortNodes(nil /* parent */, ns, less)
 		rs := []string{}
 		for _, n := range ns {
 			rs = append(rs, n.Name)
