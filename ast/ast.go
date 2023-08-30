@@ -140,16 +140,28 @@ func ByFieldName(_, ni, nj *Node, isWholeSlice bool) bool {
 	return ni.Name < nj.Name
 }
 
+func getFieldValueForByFieldValue(n *Node) *Value {
+	if len(n.Values) != 1 {
+		return nil
+	}
+	return n.Values[0]
+}
+
 // ByFieldValue is a NodeLess function that orders adjacent scalar nodes with the same name by
 // their scalar value.
 func ByFieldValue(_, ni, nj *Node, isWholeSlice bool) bool {
 	if isWholeSlice {
 		return false
 	}
-	if ni.Name != nj.Name || len(ni.Values) != 1 || len(nj.Values) != 1 {
+	vi := getFieldValueForByFieldValue(ni)
+	vj := getFieldValueForByFieldValue(nj)
+	if vi == nil {
+		return vj != nil
+	}
+	if vj == nil {
 		return false
 	}
-	return ni.Values[0].Value < nj.Values[0].Value
+	return vi.Value < vj.Value
 }
 
 func getChildValueByFieldSubfield(field, subfield string, n *Node) *Value {
