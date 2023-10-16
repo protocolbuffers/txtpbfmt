@@ -303,3 +303,87 @@ func TestFixInline(t *testing.T) {
 		}
 	}
 }
+
+func TestListSyntax(t *testing.T) {
+	// A comparer that ignores ast.Position fields so as to simplify writing our nodes without including position information.
+	ignoreAstPositionComparer := cmp.Comparer(func(x, y ast.Position) bool {
+		return true
+	})
+
+	inputs := []struct {
+		in   string
+		want []*ast.Node
+	}{{
+		in: `foo: []`,
+		want: []*ast.Node{&ast.Node{
+			Name:             "foo",
+			ChildrenSameLine: true,
+			ValuesAsList:     true}},
+	}, {
+		in: `foo: [
+			{
+				field: val1,
+				other_field: val2
+			},
+			{
+				field: val3,
+			}
+	]`,
+		want: []*ast.Node{&ast.Node{
+			Name:           "foo",
+			ChildrenAsList: true,
+			Children: []*ast.Node{
+				&ast.Node{
+					Name:      "",
+					SkipColon: true,
+					Children: []*ast.Node{
+						&ast.Node{Name: "field", Values: []*ast.Value{&ast.Value{Value: "val1"}}},
+						&ast.Node{Name: "other_field", Values: []*ast.Value{&ast.Value{Value: "val2"}}},
+					},
+				},
+				&ast.Node{
+					Name:      "",
+					SkipColon: true,
+					Children: []*ast.Node{
+						&ast.Node{Name: "field", Values: []*ast.Value{&ast.Value{Value: "val3"}}},
+					},
+				},
+			}}},
+	}, {
+		in: `foo: {
+				field: val1,
+				other_field: val2
+			}
+			foo: {
+				field: val3,
+			}`,
+		want: []*ast.Node{
+			&ast.Node{
+				Name: "foo",
+				Children: []*ast.Node{
+					&ast.Node{Name: "field", Values: []*ast.Value{&ast.Value{Value: "val1"}}},
+					&ast.Node{Name: "other_field", Values: []*ast.Value{&ast.Value{Value: "val2"}}},
+				},
+			},
+			&ast.Node{
+				Name: "foo",
+				Children: []*ast.Node{
+					&ast.Node{
+						Name:   "field",
+						Values: []*ast.Value{&ast.Value{Value: "val3"}},
+					},
+				},
+			}},
+	},
+	}
+	for _, input := range inputs {
+		nodes, err := parser.Parse([]byte(input.in))
+		if err != nil {
+			t.Errorf("Parse returned err %v", err)
+			continue
+		}
+		if diff := cmp.Diff(input.want, nodes, ignoreAstPositionComparer); diff != "" {
+			t.Errorf("Parse() returned unexpected difference in parsed nodes (-want +got):\n%s", diff)
+		}
+	}
+}
