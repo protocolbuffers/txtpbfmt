@@ -30,6 +30,14 @@ Main features:
 
 ![main features](docs/features.png)
 
+Configurable features:
+
+-   Fields on
+    [`parser.Config`](https://github.com/search?q=repo%3Aprotocolbuffers%2Ftxtpbfmt+%22type+Config+struct%22&type=code)
+-   Corresponding `# txtpbfmt: feature` names on
+    [`parser.addToConfig`](https://github.com/search?q=repo%3Aprotocolbuffers%2Ftxtpbfmt+%22func+addToConfig%28%22&type=code)
+-   Examples on [config.md](docs/config.md)
+
 ## Is there an API to edit text proto files while preserving comments?
 
 Yes, see [ast.go](ast/ast.go).
