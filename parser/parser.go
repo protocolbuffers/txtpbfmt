@@ -567,21 +567,17 @@ func (p *parser) parse(isRoot bool) (result []*ast.Node, endPos ast.Position, er
 			return nil, ast.Position{}, err
 		}
 
+		// p.parse is often invoked with the index pointing at the newline character
+		// after the previous item. We should still report that this item starts in
+		// the next line.
+		p.consume('\n')
 		startPos := p.position()
-		if p.nextInputIs('\n') {
-			// p.parse is often invoked with the index pointing at the
-			// newline character after the previous item.
-			// We should still report that this item starts in the next line.
-			startPos.Byte++
-			startPos.Line++
-			startPos.Column = 1
-		}
 
 		// Read PreComments.
 		comments, blankLines := p.skipWhiteSpaceAndReadComments(true /* multiLine */)
 
 		// Handle blank lines.
-		if blankLines > 1 {
+		if blankLines > 0 {
 			if p.config.infoLevel() {
 				p.config.infof("blankLines: %v", blankLines)
 			}
