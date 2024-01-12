@@ -1127,6 +1127,57 @@ presubmit: {
   }
 }
 `}, {
+		name: "blank lines before comment blocks are collapsed to one",
+		in: `# txtpbfmt: sort_repeated_fields_by_content
+presubmit: {
+  check_contents: {
+
+
+    # Should go after ADD.
+    # And the empty lines above this are collapsed into one blank line.
+    operation: EDIT
+    operation: ADD
+
+
+
+    operation: REMOVE
+  }
+}
+`,
+		out: `# txtpbfmt: sort_repeated_fields_by_content
+presubmit: {
+  check_contents: {
+    operation: ADD
+
+    # Should go after ADD.
+    # And the empty lines above this are collapsed into one blank line.
+    operation: EDIT
+
+    operation: REMOVE
+  }
+}
+`}, {
+		name: "blank lines before comment blocks are collapsed to one",
+		in: `# txtpbfmt: sort_repeated_fields_by_content
+presubmit: {
+  check_contents: {
+    # This comment is a separate node and does not move when the fields are sorted.
+
+    operation: EDIT
+    operation: ADD
+  }
+}
+`,
+		out: `# txtpbfmt: sort_repeated_fields_by_content
+presubmit: {
+  check_contents: {
+    # This comment is a separate node and does not move when the fields are sorted.
+    operation: ADD
+
+    operation: EDIT
+  }
+}
+`}, {
 		name: "sort by subfield values",
 		in: `# txtpbfmt: sort_repeated_fields_by_subfield=operation.name
 # txtpbfmt: sort_repeated_fields_by_subfield=test.id

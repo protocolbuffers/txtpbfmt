@@ -585,6 +585,7 @@ func (p *parser) parse(isRoot bool) (result []*ast.Node, endPos ast.Position, er
 			if p.config.infoLevel() {
 				p.config.infof("blankLines: %v", blankLines)
 			}
+			// Here we collapse the leading blank lines into one blank line.
 			comments = append([]string{""}, comments...)
 		}
 
@@ -824,15 +825,20 @@ func (p *parser) readContinuousBlocksOfComments() []string {
 // skipWhiteSpaceAndReadComments has multiple cases:
 //   - (1) reading a block of comments followed by a blank line
 //   - (2) reading a block of comments followed by non-blank content
-//   - (3) reading the inline comments between the current char and the end of the
-//     current line
+//   - (3) reading the inline comments between the current char and the end of
+//     the current line
 //
-// Lines of comments and number of blank lines will be returned.
+// In both cases (1) and (2), there can also be blank lines before the comment
+// starts.
+//
+// Lines of comments and number of blank lines before the comment will be
+// returned. If there is no comment, the returned slice will be empty.
 func (p *parser) skipWhiteSpaceAndReadComments(multiLine bool) ([]string, int) {
 	i := p.index
 	var foundComment, insideComment bool
 	commentBegin := 0
 	var comments []string
+	// Number of blanks lines *before* the comment (if any) starts.
 	blankLines := 0
 	for ; i < p.length; i++ {
 		if p.in[i] == '#' && !insideComment {
