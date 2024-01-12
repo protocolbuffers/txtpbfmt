@@ -1370,6 +1370,33 @@ field: "b"
 message: { id: "a" }
 message: { id: "b" }
 `}, {
+		name: "detached comment creates a new group for sorting",
+		in: `# txtpbfmt: sort_repeated_fields_by_content
+
+# field c
+field: "c"
+
+# field a
+field: "a"
+
+# new group - the fields below don't get sorted with the fields above
+
+# field b
+field: "b"
+`,
+		out: `# txtpbfmt: sort_repeated_fields_by_content
+
+# field a
+field: "a"
+
+# field c
+field: "c"
+
+# new group - the fields below don't get sorted with the fields above
+
+# field b
+field: "b"
+`}, {
 		name: "trailing comma / semicolon",
 		in: `dict: {
 	arg: {
