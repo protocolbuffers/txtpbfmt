@@ -207,9 +207,16 @@ func (n *Node) getChildValue(field string) *Value {
 	return nil
 }
 
-// IsCommentOnly returns true if this is a comment-only node.
+// IsCommentOnly returns true if this is a comment-only node. Even a node that
+// only contains a blank line is considered a comment-only node in the sense
+// that it has no proto content.
 func (n *Node) IsCommentOnly() bool {
 	return n.Name == "" && n.Children == nil
+}
+
+// IsBlankLine returns true if this is a blank line node.
+func (n *Node) IsBlankLine() bool {
+	return n.IsCommentOnly() && len(n.PreComments) == 1 && n.PreComments[0] == ""
 }
 
 type fixData struct {

@@ -189,6 +189,12 @@ bar: 2
 			want: []bool{false, true},
 		},
 		{
+			in: `foo: 1
+
+`,
+			want: []bool{false, true},
+		},
+		{
 			in:   `{}`,
 			want: []bool{false},
 		},
@@ -205,6 +211,68 @@ bar: 2
 		for i, n := range nodes {
 			if got := n.IsCommentOnly(); got != input.want[i] {
 				t.Errorf("For %v, nodes[%v].IsCommentOnly() = %v, want %v", input.in, i, got, input.want[i])
+			}
+		}
+	}
+}
+
+func TestIsBlankLine(t *testing.T) {
+	inputs := []struct {
+		in   string
+		want []bool
+	}{{
+		in: `foo: 1
+bar: 2`,
+		want: []bool{false, false},
+	},
+		{
+			in: `foo: 1
+bar: 2
+`,
+			want: []bool{false, false},
+		},
+		{
+			in: `foo: 1
+bar: 2
+# A trailing comment.
+`,
+			want: []bool{false, false, false},
+		},
+		{
+			in: `first {
+  foo: true  # bar
+}
+# trailing comment
+`,
+			want: []bool{false, false},
+		},
+		{
+			in: `foo: 1
+
+`,
+			want: []bool{false, true},
+		},
+		{
+			in: `# Header comment.
+
+foo: 1
+`,
+			// The blank line is part of the node of the `foo: 1` item.
+			want: []bool{false, false},
+		},
+	}
+	for _, input := range inputs {
+		nodes, err := parser.Parse([]byte(input.in))
+		if err != nil {
+			t.Errorf("Parse %v returned err %v", input.in, err)
+			continue
+		}
+		if len(nodes) != len(input.want) {
+			t.Errorf("For %v, expect %v nodes, got %v", input.in, len(input.want), len(nodes))
+		}
+		for i, n := range nodes {
+			if got := n.IsBlankLine(); got != input.want[i] {
+				t.Errorf("For %v, nodes[%v].IsBlankLine() = %v, want %v", input.in, i, got, input.want[i])
 			}
 		}
 	}
