@@ -580,9 +580,31 @@ func (p *parser) parse(isRoot bool) (result []*ast.Node, endPos ast.Position, er
 		if blankLines > 0 {
 			if p.config.infoLevel() {
 				p.config.infof("blankLines: %v", blankLines)
+				p.config.infof("comments: %v", comments)
 			}
-			// Here we collapse the leading blank lines into one blank line.
-			comments = append([]string{""}, comments...)
+			if len(res) > 0 && res[len(res)-1].IsCommentOnly() {
+				// Blanks lines after a comment-only node are collapsed into one blank
+				// line which becomes an independent unnamed node, so that the blank
+				// line does not move when the item node below it moves for sorting.
+				//
+				// This allows users to add a blank line after a header comment as a way
+				// to avoid the header comment moving if the first item moves due to
+				// sorting.
+				res = append(res, &ast.Node{Start: startPos, PreComments: []string{""}})
+				// Each blank line is exactly 1 byte, and we need to adjust the start
+				// position for the next node to be after all the collapsed blank lines
+				// represented by the just added node.
+				startPos.Byte += uint32(blankLines)
+				startPos.Line += int32(blankLines)
+				startPos.Column = 1
+			} else {
+				// Unless the previous node is a comment-only node, we collapse the
+				// blanks lines into one blank line as the start of the comment (if any)
+				// of the next node, such that this blank line will move with the node
+				// when sorting, will be deleted with the node if targeted for deletion,
+				// etc.
+				comments = append([]string{""}, comments...)
+			}
 		}
 
 		for p.nextInputIs('%') {
@@ -1064,7 +1086,16 @@ func sortAndFilterNodes(parent *ast.Node, nodes []*ast.Node, sortFunction NodeSo
 		}
 	}
 	if sortFunction != nil {
-		return sortFunction(parent, nodes)
+		err := sortFunction(parent, nodes)
+		if err != nil {
+			return err
+		}
+		// Sorting can sometimes cause a blank line node to be before an item node
+		// that also starts with a blank line. Given that we normally collapse
+		// sequences of multiple blank lines into a single blank line, this would
+		// make formatting not idempotent, so we run an extra scan to collapse such
+		// blank lines here.
+		collapseBlankLines(nodes)
 	}
 	return nil
 }
@@ -1084,6 +1115,31 @@ func RemoveDuplicates(nodes []*ast.Node) {
 			} else {
 				seen[key] = true
 			}
+		}
+	}
+}
+
+// Marks blank line nodes followed by a blank line deleted.
+//
+// This function ignores whether other nodes are already marked deleted or not
+// to keep the logic simpler. This may make certain blank lines be deleted or
+// not be deleted incorrectly, depending on the context of where the function is
+// called.
+//
+// See also `removeDeleted` where blank lines are handled specially.
+func collapseBlankLines(nodes []*ast.Node) {
+	for i := 0; i < len(nodes)-1; i++ {
+		nd := nodes[i]
+		if !nd.IsBlankLine() {
+			continue
+		}
+		next := nodes[i+1]
+		if len(next.PreComments) > 0 && next.PreComments[0] == "" {
+			// This marks the blank line node as deleted, whereas parsing this content
+			// would instead collapse both the blank line of the blank line node and
+			// the blank line in `next.PreComments[0]` into one blank line node, and
+			// `next.PreComments[0]` would not be a blank line.
+			nd.Deleted = true
 		}
 	}
 }

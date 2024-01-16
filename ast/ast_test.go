@@ -257,8 +257,9 @@ bar: 2
 
 foo: 1
 `,
-			// The blank line is part of the node of the `foo: 1` item.
-			want: []bool{false, false},
+			// The blank line is a separate node and not part of the `foo: 1` item
+			// because it follows a comment node.
+			want: []bool{false, true, false},
 		},
 	}
 	for _, input := range inputs {
