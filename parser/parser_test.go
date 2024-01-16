@@ -1182,8 +1182,8 @@ presubmit: {
 presubmit: {
   check_contents: {
     # This comment is a separate node and does not move when the fields are sorted.
-
     operation: ADD
+
     operation: EDIT
   }
 }
@@ -1364,6 +1364,7 @@ message: { id: "a" }
 
 # field a
 field: "a"
+
 # field b
 field: "b"
 message: { id: "a" }
@@ -1373,6 +1374,7 @@ message: { id: "b" }
 
 # field a
 field: "a"
+
 # field b
 field: "b"
 message: { id: "a" }
@@ -1396,6 +1398,7 @@ field: "b"
 
 # field a
 field: "a"
+
 # field c
 field: "c"
 
@@ -1600,61 +1603,6 @@ func TestParserConfigs(t *testing.T) {
   }
   # Should remain below
   auto_reviewers: "reviewerA"
-}
-`,
-	}, {
-		name: "SortRepeatedFieldsBySubfieldWithHeaderComment",
-		in: `# proto-file: path/to/my/file.proto
-# proto-message: my.package.MyMessage
-#
-# My comments here.
-foo: {
-  bar: EDIT
-}
-foo: {
-  bar: ADD
-}
-`,
-		config: Config{SortRepeatedFieldsBySubfield: []string{"bar"}},
-		// We always attach the comment to the item - there is no special support
-		// for header comments. See the EmptyLineDetachesComment test case below for
-		// a workaround.
-		out: `foo: {
-  bar: ADD
-}
-# proto-file: path/to/my/file.proto
-# proto-message: my.package.MyMessage
-#
-# My comments here.
-foo: {
-  bar: EDIT
-}
-`,
-	}, {
-		name: "SortRepeatedFieldsBySubfieldWithHeaderComment_EmptyLineDetachesComment",
-		in: `# proto-file: path/to/my/file.proto
-# proto-message: my.package.MyMessage
-#
-# My comments here.
-
-foo: {
-  bar: EDIT
-}
-foo: {
-  bar: ADD
-}
-`,
-		config: Config{SortRepeatedFieldsBySubfield: []string{"bar"}},
-		out: `# proto-file: path/to/my/file.proto
-# proto-message: my.package.MyMessage
-#
-# My comments here.
-
-foo: {
-  bar: ADD
-}
-foo: {
-  bar: EDIT
 }
 `,
 	}, {

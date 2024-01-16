@@ -58,7 +58,7 @@ func TestParsePositions(t *testing.T) {
 			in: mkString(
 				"# top",        // 5 bytes + newline
 				"unrelated: 1", // 12 bytes + newline
-				"",             // this already gets accounted for trackme (blank line without a comment before it)
+				"",             // this already gets accounted for trackme
 				"trackme: 4",
 			),
 			startByte: 19,
@@ -76,22 +76,11 @@ func TestParsePositions(t *testing.T) {
 			in: mkString(
 				"# top",        // 5 bytes + newline
 				"unrelated: 1", // 12 bytes + newline
-				"",             // this already gets accounted for trackme (blank line without a comment before it)
+				"",             // this already gets accounted for trackme
 				"# boo",
 				"trackme: 4",
 			),
 			startByte: 19,
-		},
-		{
-			in: mkString(
-				"# top",              // 5 bytes + newline
-				"unrelated: 1",       // 12 bytes + newline
-				"",                   // newline
-				"# detached comment", // 18 bytes + newline
-				"",                   // newline (blank line with a comment before it becomes an unnamed node, not attached to trackme)
-				"trackme: 4",
-			),
-			startByte: 40,
 		},
 		{
 			in: mkString(
