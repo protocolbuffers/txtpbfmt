@@ -1102,6 +1102,11 @@ mapping {
 presubmit: {
   auto_reviewers: "reviewerB"
   check_contents: {
+    action: [
+      # Should go after REVIEW
+      SUBMIT,
+      REVIEW
+    ]
     # Should go after ADD
     operation: EDIT
     operation: ADD
@@ -1119,6 +1124,11 @@ presubmit: {
   auto_reviewers: "reviewerA"
   auto_reviewers: "reviewerB"
   check_contents: {
+    action: [
+      REVIEW,
+      # Should go after REVIEW
+      SUBMIT
+    ]
     check_delta_only: true
     operation: ADD
     # Should go after ADD

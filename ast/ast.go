@@ -298,6 +298,13 @@ func (v *Value) fix() fixData {
 	}
 }
 
+// SortValues sorts values by their value.
+func SortValues(values []*Value) {
+	sort.SliceStable(values, func(i, j int) bool {
+		return values[i].Value < values[j].Value
+	})
+}
+
 // GetFromPath returns all nodes with a given string path in the parse tree. See ast_test.go for examples.
 func GetFromPath(nodes []*Node, path []string) []*Node {
 	if len(path) == 0 {

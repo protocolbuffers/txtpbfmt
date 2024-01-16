@@ -342,7 +342,7 @@ func parseWithMetaCommentConfig(in []byte, c Config) ([]*ast.Node, error) {
 	if err := wrapStrings(nodes, 0, c); err != nil {
 		return nil, err
 	}
-	if err := sortAndFilterNodes( /*parent=*/ nil, nodes, nodeSortFunction(c), nodeFilterFunction(c)); err != nil {
+	if err := sortAndFilterNodes( /*parent=*/ nil, nodes, nodeSortFunction(c), nodeFilterFunction(c), valuesSortFunction(c)); err != nil {
 		return nil, err
 	}
 	return nodes, nil
@@ -1072,7 +1072,10 @@ type NodeSortFunction func(parent *ast.Node, nodes []*ast.Node) error
 // NodeFilterFunction filters the given nodes.
 type NodeFilterFunction func(nodes []*ast.Node)
 
-func sortAndFilterNodes(parent *ast.Node, nodes []*ast.Node, sortFunction NodeSortFunction, filterFunction NodeFilterFunction) error {
+// ValuesSortFunction sorts the given values.
+type ValuesSortFunction func(values []*ast.Value)
+
+func sortAndFilterNodes(parent *ast.Node, nodes []*ast.Node, sortFunction NodeSortFunction, filterFunction NodeFilterFunction, valuesSortFunction ValuesSortFunction) error {
 	if len(nodes) == 0 {
 		return nil
 	}
@@ -1080,9 +1083,12 @@ func sortAndFilterNodes(parent *ast.Node, nodes []*ast.Node, sortFunction NodeSo
 		filterFunction(nodes)
 	}
 	for _, nd := range nodes {
-		err := sortAndFilterNodes(nd, nd.Children, sortFunction, filterFunction)
+		err := sortAndFilterNodes(nd, nd.Children, sortFunction, filterFunction, valuesSortFunction)
 		if err != nil {
 			return err
+		}
+		if valuesSortFunction != nil && nd.ValuesAsList {
+			valuesSortFunction(nd.Values)
 		}
 	}
 	if sortFunction != nil {
@@ -1476,6 +1482,13 @@ func parseSubfieldSpec(subfieldSpec string) (field string, subfield string) {
 func nodeFilterFunction(c Config) NodeFilterFunction {
 	if c.RemoveDuplicateValuesForRepeatedFields {
 		return RemoveDuplicates
+	}
+	return nil
+}
+
+func valuesSortFunction(c Config) ValuesSortFunction {
+	if c.SortRepeatedFieldsByContent {
+		return ast.SortValues
 	}
 	return nil
 }
