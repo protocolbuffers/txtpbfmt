@@ -1429,6 +1429,26 @@ field: "b"
     value: { num: 1 }
   }
 }
+`}, {
+		name: "plx dashboard mixed quotes",
+		in: `# txtpbfmt: wrap_strings_after_newlines
+# txtpbfmt: smartquotes
+types_text_content: {
+  text: "Some text\nwith a <a href=\"https://www.google.com\">hyperlink</a>\nincluded"
+}
+chart_spec: "{\"columnDefinitions\":[]}"
+inline_script: "SELECT \'Hello\' AS hello"
+`,
+		out: `# txtpbfmt: wrap_strings_after_newlines
+# txtpbfmt: smartquotes
+types_text_content: {
+  text:
+    'Some text\n'
+    'with a <a href="https://www.google.com">hyperlink</a>\n'
+    'included'
+}
+chart_spec: '{"columnDefinitions":[]}'
+inline_script: "SELECT 'Hello' AS hello"
 `}}
 	for _, input := range inputs {
 		out, err := Format([]byte(input.in))

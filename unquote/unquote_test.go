@@ -10,35 +10,40 @@ import (
 
 func TestUnquote(t *testing.T) {
 	inputs := []struct {
-		in      string
-		want    string
-		wantRaw string
+		in       string
+		want     string
+		wantRaw  string
+		wantRune rune
 	}{
 		{
-			in:      `"value"`,
-			want:    `value`,
-			wantRaw: `value`,
+			in:       `"value"`,
+			want:     `value`,
+			wantRaw:  `value`,
+			wantRune: rune('"'),
 		},
 		{
-			in:      `'value'`,
-			want:    `value`,
-			wantRaw: `value`,
+			in:       `'value'`,
+			want:     `value`,
+			wantRaw:  `value`,
+			wantRune: rune('\''),
 		},
 		{
-			in:      `"foo\'\a\b\f\n\r\t\vbar"`,
-			want:    "foo'\a\b\f\n\r\t\vbar", // Double-quoted; string contains real control characters.
-			wantRaw: `foo\'\a\b\f\n\r\t\vbar`,
+			in:       `"foo\'\a\b\f\n\r\t\vbar"`,
+			want:     "foo'\a\b\f\n\r\t\vbar", // Double-quoted; string contains real control characters.
+			wantRaw:  `foo\'\a\b\f\n\r\t\vbar`,
+			wantRune: rune('"'),
 		},
 		{
-			in:      `'foo\"bar'`,
-			want:    `foo"bar`,
-			wantRaw: `foo\"bar`,
+			in:       `'foo\"bar'`,
+			want:     `foo"bar`,
+			wantRaw:  `foo\"bar`,
+			wantRune: rune('\''),
 		},
 	}
 	for _, input := range inputs {
 		node := &ast.Node{Name: "name", Values: []*ast.Value{{Value: input.in}}}
 
-		got, err := Unquote(node)
+		got, gotRune, err := Unquote(node)
 		if err != nil {
 			t.Errorf("Unquote(%v) returned err %v", input.in, err)
 			continue
@@ -48,14 +53,20 @@ func TestUnquote(t *testing.T) {
 			t.Logf("got:  %q", got)
 			t.Errorf("Unquote(%v) returned diff (-want, +got):\n%s", input.in, diff)
 		}
+		if gotRune != input.wantRune {
+			t.Errorf("Unquote(%v) returned rune %q, want %q", input.in, gotRune, input.wantRune)
+		}
 
-		got, err = Raw(node)
+		got, gotRune, err = Raw(node)
 		if err != nil {
 			t.Errorf("unquote.Raw(%v) returned err %v", input.in, err)
 			continue
 		}
 		if diff := diff.Diff(input.wantRaw, got); diff != "" {
 			t.Errorf("unquote.Raw(%v) returned diff (-wantRaw, +got):\n%s", input.in, diff)
+		}
+		if gotRune != input.wantRune {
+			t.Errorf("unquote.Raw(%v) returned rune %q, want %q", input.in, gotRune, input.wantRune)
 		}
 	}
 }
@@ -82,12 +93,12 @@ func TestErrorHandling(t *testing.T) {
 	for _, input := range inputs {
 		node := &ast.Node{Name: "name", Values: []*ast.Value{{Value: input.in}}}
 
-		_, err := Unquote(node)
+		_, _, err := Unquote(node)
 		if err == nil || !strings.Contains(err.Error(), input.wantErr) {
 			t.Errorf("Unquote(%s) got %v, want err to contain %q", input.in, err, input.wantErr)
 		}
 
-		_, err = Raw(node)
+		_, _, err = Raw(node)
 		if err == nil || !strings.Contains(err.Error(), input.wantErr) {
 			t.Errorf("Raw(%s) got %v, want err to contain %q", input.in, err, input.wantErr)
 		}

@@ -1159,7 +1159,7 @@ func wrapLinesAtColumn(nd *ast.Node, depth int, c Config) error {
 	lengthBuffer := 4 // Even at depth 0 we have a 2-space indent and a pair of quotes
 	maxLength := c.WrapStringsAtColumn - lengthBuffer - (depth * len(indentSpaces))
 
-	str, err := unquote.Raw(nd)
+	str, quote, err := unquote.Raw(nd)
 	if err != nil {
 		return fmt.Errorf("skipping string wrapping on node %q (error unquoting string): %v", nd.Name, err)
 	}
@@ -1183,7 +1183,7 @@ func wrapLinesAtColumn(nd *ast.Node, depth int, c Config) error {
 		if i < len(lines)-1 {
 			line = line + " "
 		}
-		v.Value = fmt.Sprintf(`"%s"`, line)
+		v.Value = fmt.Sprintf(`%c%s%c`, quote, line, quote)
 		newValues = append(newValues, v)
 	}
 
@@ -1223,7 +1223,7 @@ func needsWrappingAfterNewlines(nd *ast.Node, c Config) bool {
 // then wrap the string so each line ends with a newline.
 // Wraps only the current Node (does not recurse into Children).
 func wrapLinesAfterNewlines(nd *ast.Node, c Config) error {
-	str, err := unquote.Raw(nd)
+	str, quote, err := unquote.Raw(nd)
 	if err != nil {
 		return fmt.Errorf("skipping string wrapping on node %q (error unquoting string): %v", nd.Name, err)
 	}
@@ -1245,7 +1245,7 @@ func wrapLinesAfterNewlines(nd *ast.Node, c Config) error {
 		} else {
 			v = &ast.Value{}
 		}
-		v.Value = fmt.Sprintf(`"%s"`, line)
+		v.Value = fmt.Sprintf(`%c%s%c`, quote, line, quote)
 		newValues = append(newValues, v)
 	}
 
