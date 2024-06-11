@@ -1,6 +1,5 @@
 // Package parser edits text proto files, applies standard formatting
 // and preserves comments.
-// See also: https://github.com/golang/protobuf/blob/master/proto/text_parser.go
 //
 // To disable a specific file from getting formatted, add '# txtpbfmt: disable'
 // at the top of the file.
