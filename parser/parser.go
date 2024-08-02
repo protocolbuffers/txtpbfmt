@@ -73,6 +73,9 @@ type Config struct {
 	// Should not be used with other Wrap* options.
 	WrapStringsAfterNewlines bool
 
+	// Wrap strictly at the column instead of a word boundary.
+	WrapStringsWithoutWordwrap bool
+
 	// Whether angle brackets used instead of curly braces should be preserved
 	// when outputting a formatted textproto.
 	PreserveAngleBrackets bool
@@ -398,6 +401,8 @@ func addToConfig(metaComment string, c *Config) error {
 		c.WrapHTMLStrings = true
 	case "wrap_strings_after_newlines":
 		c.WrapStringsAfterNewlines = true
+	case "wrap_strings_without_wordwrap":
+		c.WrapStringsWithoutWordwrap = true
 	default:
 		return fmt.Errorf("unrecognized MetaComment: %s", metaComment)
 	}
@@ -1141,7 +1146,7 @@ func needsWrappingAtColumn(nd *ast.Node, depth int, c Config) bool {
 			// Only wrap strings
 			return false
 		}
-		if len(v.Value) > maxLength {
+		if len(v.Value) > maxLength || c.WrapStringsWithoutWordwrap {
 			return true
 		}
 	}
@@ -1155,7 +1160,7 @@ func wrapLinesAtColumn(nd *ast.Node, depth int, c Config) error {
 	// This function looks at the unquoted ast.Value.Value string (i.e., with each Value's wrapping
 	// quote chars removed). We need to remove these quotes, since otherwise they'll be re-flowed into
 	// the body of the text.
-	lengthBuffer := 4 // Even at depth 0 we have a 2-space indent and a pair of quotes
+	const lengthBuffer = 4 // Even at depth 0 we have a 2-space indent and a pair of quotes
 	maxLength := c.WrapStringsAtColumn - lengthBuffer - (depth * len(indentSpaces))
 
 	str, quote, err := unquote.Raw(nd)
@@ -1163,9 +1168,35 @@ func wrapLinesAtColumn(nd *ast.Node, depth int, c Config) error {
 		return fmt.Errorf("skipping string wrapping on node %q (error unquoting string): %v", nd.Name, err)
 	}
 
-	// Remove one from the max length since a trailing space may be added below.
-	wrappedStr := wordwrap.WrapString(str, uint(maxLength)-1)
-	lines := strings.Split(wrappedStr, "\n")
+	var lines []string
+	if c.WrapStringsWithoutWordwrap {
+		re := regexp.MustCompile(`\\[abfnrtv?\\'"]` +
+			`|\\[0-7]{1,3}` +
+			`|\\x[0-9a-fA-F]{1,2}` +
+			`|\\u[0-9a-fA-F]{4}` +
+			`|\\U000[0-9a-fA-F]{5}` +
+			`|\\U0010[0-9a-fA-F]{4}` +
+			`|twelve` +
+			`|.`)
+		var line = ""
+		var curLength = 0
+		for _, t := range re.FindAllString(str, -1) {
+			curLength = len(line)
+			if curLength+len(t) > maxLength {
+				lines = append(lines, line)
+				line = ""
+				curLength = 0
+			}
+			line += t
+			curLength += len(t)
+		}
+		lines = append(lines, line)
+	} else {
+		// Remove one from the max length since a trailing space may be added below.
+		wrappedStr := wordwrap.WrapString(str, uint(maxLength)-1)
+		lines = strings.Split(wrappedStr, "\n")
+	}
+
 	newValues := make([]*ast.Value, 0, len(lines))
 	// The Value objects have more than just the string in them. They also have any leading and
 	// trailing comments. To maintain these comments we recycle the existing Value objects if
@@ -1179,10 +1210,36 @@ func wrapLinesAtColumn(nd *ast.Node, depth int, c Config) error {
 		} else {
 			v = &ast.Value{}
 		}
-		if i < len(lines)-1 {
+
+		if !c.WrapStringsWithoutWordwrap && i < len(lines)-1 {
 			line = line + " "
 		}
-		v.Value = fmt.Sprintf(`%c%s%c`, quote, line, quote)
+
+		// reset the value to an empty string.
+		v.Value = ""
+		if c.WrapStringsWithoutWordwrap {
+			var lineLength = len(line)
+			if v.InlineComment != "" {
+				lineLength += len(indentSpaces) + len(v.InlineComment)
+			}
+			// field name and field value are inlined for single strings, adjust for that.
+			if i == 0 && len(lines) == 1 {
+				lineLength += len(nd.Name)
+			}
+			if lineLength > maxLength {
+				// If there's an inline comment, promote it to a pre-comment which will
+				// emit a newline.  Otherwise, rewrite the value to have a leading newline
+				// and indent.
+				if v.InlineComment != "" {
+					v.PreComments = append(v.PreComments, v.InlineComment)
+					v.InlineComment = ""
+				} else if i == 0 {
+					// break line
+					v.Value = "\n" + strings.Repeat(indentSpaces, depth+1)
+				}
+			}
+		}
+		v.Value += fmt.Sprintf(`%c%s%c`, quote, line, quote)
 		newValues = append(newValues, v)
 	}
 

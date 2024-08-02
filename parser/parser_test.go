@@ -2463,6 +2463,60 @@ s2: '''six seven \neight nine'''
   " eeeeeeeeee\x00 \n"
 `,
 	}, {
+		name: "WrapStringsAtColumn_noWordwrap",
+		config: Config{
+			WrapStringsAtColumn:        12,
+			WrapStringsWithoutWordwrap: true,
+		},
+		in: `# 3456789012
+s: "Curabitur\040elit\x20nec mi egestas,\u000Dtincidunt \U00010309nterdum elit porta.\n"
+`,
+		out: `# 3456789012
+s:
+  "Curabitu"
+  "r\040eli"
+  "t\x20nec"
+  " mi eges"
+  "tas,"
+  "\u000Dti"
+  "ncidunt "
+  "\U00010309"
+  "nterdum "
+  "elit por"
+  "ta.\n"
+`,
+	}, {
+		name: "WrapStringsAtColumn_noWordwrapDeep",
+		config: Config{
+			WrapStringsAtColumn:        12,
+			WrapStringsWithoutWordwrap: true,
+		},
+		in: `
+this_field_name_displays_wider_than_the_twelve_requested: "twelve" # XII
+`,
+		out: `this_field_name_displays_wider_than_the_twelve_requested:
+  # XII
+  "twelve"
+`,
+	}, {
+		name: "WrapStringsAtColumn_noWordwrapMetacomment",
+		in: `# txtpbfmt: wrap_strings_at_column=12
+# txtpbfmt: wrap_strings_without_wordwrap
+# 3456789012
+s: "1\tone\r\n2\ttwo\r\n3\tthree\r\n4\tfour\r\n"
+`,
+		out: `# txtpbfmt: wrap_strings_at_column=12
+# txtpbfmt: wrap_strings_without_wordwrap
+# 3456789012
+s:
+  "1\tone\r"
+  "\n2\ttwo"
+  "\r\n3\tt"
+  "hree\r\n"
+  "4\tfour"
+  "\r\n"
+`,
+	}, {
 		name: "PreserveAngleBrackets",
 		config: Config{
 			PreserveAngleBrackets: true,
