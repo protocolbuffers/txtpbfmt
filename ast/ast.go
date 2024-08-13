@@ -71,6 +71,9 @@ type Node struct {
 	PostValuesComments []string
 	// Whether the braces used for the children of this node are curly braces or angle brackets.
 	IsAngleBracket bool
+	// If this is not empty, it means that formatting was disabled for this node and it contains the
+	// raw, unformatted node string.
+	Raw string
 }
 
 // NodeLess is a sorting function that compares two *Nodes, possibly using the parent Node

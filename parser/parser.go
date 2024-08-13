@@ -398,6 +398,8 @@ func addToConfig(metaComment string, c *Config) error {
 		c.WrapHTMLStrings = true
 	case "wrap_strings_after_newlines":
 		c.WrapStringsAfterNewlines = true
+	case "on": // This doesn't change the overall config.
+	case "off": // This doesn't change the overall config.
 	default:
 		return fmt.Errorf("unrecognized MetaComment: %s", metaComment)
 	}
@@ -571,6 +573,18 @@ func (p *parser) parse(isRoot bool) (result []*ast.Node, endPos ast.Position, er
 		// the next line.
 		p.consume('\n')
 		startPos := p.position()
+
+		fmtDisabled, err := p.readFormatterDisabledBlock()
+		if err != nil {
+			return nil, startPos, err
+		}
+		if len(fmtDisabled) > 0 {
+			res = append(res, &ast.Node{
+				Start: startPos,
+				Raw:   fmtDisabled,
+			})
+			continue
+		}
 
 		// Read PreComments.
 		comments, blankLines := p.skipWhiteSpaceAndReadComments(true /* multiLine */)
@@ -815,6 +829,33 @@ func (p *parser) readContinuousBlocksOfComments() []string {
 	}
 
 	return preComments
+}
+
+// Returns the exact text within the block flanked by "# txtpbfmt: off" and "# txtpbfmt: on".
+// The off directives must be on its own line without indenting, and the it cannot be preceded by a
+// comment line. The on directive must followed by a line break. Only full nodes of a AST can be
+// within this block. Partially disabled sections, like just the first line of a for loop without
+// body or closing brace, are not supported. Value lists are not supported. No parsing happens
+// within this block, and as parsing errors will be ignored, please exercise caution.
+func (p *parser) readFormatterDisabledBlock() (string, error) {
+	start := p.index
+	if !p.consumeString("# txtpbfmt: off") {
+		return "", nil
+	}
+	if !p.consume('\n') {
+		return "", fmt.Errorf("txtpbfmt off should be followed by newline at %s", p.errorContext())
+	}
+	for ; p.index < p.length; p.index++ {
+		if p.consumeString("# txtpbfmt: on") {
+			if !p.consume('\n') {
+				return "", fmt.Errorf("txtpbfmt on should be followed by newline at %s", p.errorContext())
+			}
+			return string(p.in[start:p.index]), nil
+		}
+	}
+	// We reached the end of the file without finding the on directive.
+	p.index = start
+	return "", fmt.Errorf("unterminated txtpbfmt off at %s", p.errorContext())
 }
 
 // skipWhiteSpaceAndReadComments has multiple cases:
@@ -1081,7 +1122,7 @@ func RemoveDuplicates(nodes []*ast.Node) {
 	}
 	seen := make(map[nameAndValue]bool)
 	for _, nd := range nodes {
-		if seen != nil && len(nd.Values) == 1 {
+		if len(nd.Values) == 1 {
 			key := nameAndValue{nd.Name, nd.Values[0].Value}
 			if _, value := seen[key]; value {
 				// Name-Value pair found in the same nesting level, deleting.
@@ -1508,6 +1549,10 @@ func (f formatter) writeNodes(nodes []*ast.Node, depth int, isSameLine, asListIt
 	}
 
 	for index, nd := range nodes {
+		if len(nd.Raw) > 0 {
+			f.WriteString(nd.Raw)
+			continue
+		}
 		for _, comment := range nd.PreComments {
 			if len(comment) == 0 {
 				if !(depth == 0 && index == 0) {

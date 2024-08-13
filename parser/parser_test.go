@@ -27,6 +27,9 @@ func TestError(t *testing.T) {
 	}, {
 		in: `name: "string with literal new line
 "`, err: "new line",
+	}, {
+		in:  `# txtpbfmt: off`,
+		err: "unterminated txtpbfmt off",
 	}}
 	for _, input := range inputs {
 		out, err := Format([]byte(input.in))
@@ -199,6 +202,15 @@ p        {}`,
 		in:       `"""text""" "\""`,
 		err:      false,
 		testType: tripleQuotedTest,
+	}, {
+		name: "txtpbfmt: off/on",
+		in: `# txtpbfmt: off
+      foo: "bar"
+   {
+     bar: "baz"
+  }
+# txtpbfmt: on
+    `, err: false,
 	}}
 	for _, input := range inputs {
 		bytes := []byte(input.in)
@@ -1449,6 +1461,65 @@ types_text_content: {
 }
 chart_spec: '{"columnDefinitions":[]}'
 inline_script: "SELECT 'Hello' AS hello"
+`}, {
+		name: "txtpbfmt off/on",
+		in: `foo: "bar"
+bar {
+      baz: "qux"
+# txtpbfmt: off
+             # comment
+# comment
+ no_format {
+  foo:   "bar"
+}
+      enabled: {TEMPLATE_plx}
+# txtpbfmt: on
+}
+  should_format {
+foo:  "bar"
+  }
+# txtpbfmt: off
+      no_format {    foo:   "bar"  } # txtpbfmt: on
+  should_format {
+foo:  "bar"
+  }
+`,
+		out: `foo: "bar"
+bar {
+  baz: "qux"
+# txtpbfmt: off
+             # comment
+# comment
+ no_format {
+  foo:   "bar"
+}
+      enabled: {TEMPLATE_plx}
+# txtpbfmt: on
+}
+should_format {
+  foo: "bar"
+}
+# txtpbfmt: off
+      no_format {    foo:   "bar"  } # txtpbfmt: on
+should_format {
+  foo: "bar"
+}
+`}, {
+		name: "txtpbfmt off/on doesn't work within list",
+		in: `foo: [
+# txtpbfmt: off
+a, b,
+              c
+# txtpbfmt: on
+]
+`,
+		out: `foo: [
+  # txtpbfmt: off
+  a,
+  b,
+  c
+  # txtpbfmt: on
+]
 `}}
 	for _, input := range inputs {
 		out, err := Format([]byte(input.in))
