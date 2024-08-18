@@ -74,6 +74,9 @@ type Node struct {
 	// If this is not empty, it means that formatting was disabled for this node and it contains the
 	// raw, unformatted node string.
 	Raw string
+	// Used when we want to break between the field name and values when a
+	// single-line node exceeds the requested wrap column.
+	PutSingleValueOnNextLine bool
 }
 
 // NodeLess is a sorting function that compares two *Nodes, possibly using the parent Node

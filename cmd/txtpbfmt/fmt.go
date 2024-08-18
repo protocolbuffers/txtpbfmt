@@ -30,6 +30,7 @@ var (
 	wrapStringsAtColumn                    = flag.Int("wrap_strings_at_column", 0, "Max columns for string field values. (0 means no wrap.)")
 	wrapHTMLStrings                        = flag.Bool("wrap_html_strings", false, "Wrap strings containing HTML tags. (Requires wrap_strings_at_column > 0.)")
 	wrapStringsAfterNewlines               = flag.Bool("wrap_strings_after_newlines", false, "Wrap strings after newlines.")
+	wrapStringsWithoutWordwrap             = flag.Bool("wrap_strings_without_wordwrap", false, "Wrap strings at the given column only.")
 	preserveAngleBrackets                  = flag.Bool("preserve_angle_brackets", false, "Preserve angle brackets instead of converting to curly braces.")
 	smartQuotes                            = flag.Bool("smart_quotes", false, "Use single quotes around strings that contain double but not single quotes.")
 )
@@ -100,6 +101,7 @@ func main() {
 			WrapStringsAtColumn:                    *wrapStringsAtColumn,
 			WrapHTMLStrings:                        *wrapHTMLStrings,
 			WrapStringsAfterNewlines:               *wrapStringsAfterNewlines,
+			WrapStringsWithoutWordwrap:             *wrapStringsWithoutWordwrap,
 			PreserveAngleBrackets:                  *preserveAngleBrackets,
 			SmartQuotes:                            *smartQuotes,
 			Logger:                                 logger,
