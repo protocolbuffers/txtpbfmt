@@ -1478,7 +1478,6 @@ bar {
   should_format {
 foo:  "bar"
   }
-
 # txtpbfmt: off
       no_format {    foo:   "bar"  } # txtpbfmt: on
   should_format {
@@ -1500,7 +1499,6 @@ bar {
 should_format {
   foo: "bar"
 }
-
 # txtpbfmt: off
       no_format {    foo:   "bar"  } # txtpbfmt: on
 should_format {

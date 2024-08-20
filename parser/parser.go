@@ -844,12 +844,7 @@ func (p *parser) readContinuousBlocksOfComments() []string {
 // within this block, and as parsing errors will be ignored, please exercise caution.
 func (p *parser) readFormatterDisabledBlock() (string, error) {
 	start := p.index
-	for p.consume('\n') {
-		// Consume blank lines.
-	}
 	if !p.consumeString("# txtpbfmt: off") {
-		// Directive not found. Rollback to start.
-		p.index = start
 		return "", nil
 	}
 	if !p.consume('\n') {
