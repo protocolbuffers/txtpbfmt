@@ -546,6 +546,14 @@ func (p *parser) position() ast.Position {
 	}
 }
 
+// Modifies the parser by rewinding to the given position.
+// A position can be snapshotted by using the `position()` function above.
+func (p *parser) rollbackPosition(pos ast.Position) {
+	p.index = int(pos.Byte)
+	p.line = int(pos.Line)
+	p.column = int(pos.Column)
+}
+
 func (p *parser) consumeOptionalSeparator() error {
 	if p.index > 0 && !p.isBlankSep(p.index-1) {
 		// If an unnamed field immediately follows non-whitespace, we require a separator character first (key_one:,:value_two instead of key_one::value_two)
@@ -778,9 +786,7 @@ func (p *parser) parse(isRoot bool) (result []*ast.Node, endPos ast.Position, er
 			}
 		} else {
 			// Rewind comments.
-			p.index = int(previousPos.Byte)
-			p.line = int(previousPos.Line)
-			p.column = int(previousPos.Column)
+			p.rollbackPosition(previousPos)
 			// Handle Values.
 			nd.Values, err = p.readValues()
 			if err != nil {
@@ -837,14 +843,29 @@ func (p *parser) readContinuousBlocksOfComments() []string {
 }
 
 // Returns the exact text within the block flanked by "# txtpbfmt: off" and "# txtpbfmt: on".
-// The off directives must be on its own line without indenting, and the it cannot be preceded by a
-// comment line. The on directive must followed by a line break. Only full nodes of a AST can be
+// The 'off' directive must be on its own line, and it cannot be preceded by a comment line. Any
+// preceding whitespace on this line and up to one blank line will be retained.
+// The 'on' directive must followed by a line break. Only full nodes of a AST can be
 // within this block. Partially disabled sections, like just the first line of a for loop without
 // body or closing brace, are not supported. Value lists are not supported. No parsing happens
 // within this block, and as parsing errors will be ignored, please exercise caution.
 func (p *parser) readFormatterDisabledBlock() (string, error) {
+	previousPos := p.position()
 	start := p.index
+	for p.index < p.length && p.isBlankSep(p.index) {
+		if p.consume('\n') {
+			// Include up to one blank line before the 'off' directive.
+			start = p.index - 1
+		} else if p.consume(' ') {
+			// Do nothing. Side-effect is to advance p.index.
+		} else if p.consume('\t') {
+			// Do nothing. Side-effect is to advance p.index.
+		}
+	}
+	offStart := p.position()
 	if !p.consumeString("# txtpbfmt: off") {
+		// Directive not found. Rollback to start.
+		p.rollbackPosition(previousPos)
 		return "", nil
 	}
 	if !p.consume('\n') {
@@ -858,8 +879,8 @@ func (p *parser) readFormatterDisabledBlock() (string, error) {
 			return string(p.in[start:p.index]), nil
 		}
 	}
-	// We reached the end of the file without finding the on directive.
-	p.index = start
+	// We reached the end of the file without finding the 'on' directive.
+	p.rollbackPosition(offStart)
 	return "", fmt.Errorf("unterminated txtpbfmt off at %s", p.errorContext())
 }
 
@@ -992,9 +1013,7 @@ func (p *parser) readValues() ([]*ast.Value, error) {
 	}
 	if previousPos != (ast.Position{}) {
 		// Rewind comments.
-		p.index = int(previousPos.Byte)
-		p.line = int(previousPos.Line)
-		p.column = int(previousPos.Column)
+		p.rollbackPosition(previousPos)
 	} else {
 		i := p.index
 		// Handle other values.

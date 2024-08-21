@@ -1463,10 +1463,12 @@ chart_spec: '{"columnDefinitions":[]}'
 inline_script: "SELECT 'Hello' AS hello"
 `}, {
 		name: "txtpbfmt off/on",
-		in: `foo: "bar"
+		in: `# txtpbfmt: off
+  fmt:    "off" # txtpbfmt: on
+foo: "bar"
 bar {
       baz: "qux"
-# txtpbfmt: off
+   # txtpbfmt: off
              # comment
 # comment
  no_format {
@@ -1478,16 +1480,21 @@ bar {
   should_format {
 foo:  "bar"
   }
+
+
+  
 # txtpbfmt: off
       no_format {    foo:   "bar"  } # txtpbfmt: on
   should_format {
 foo:  "bar"
   }
 `,
-		out: `foo: "bar"
+		out: `# txtpbfmt: off
+  fmt:    "off" # txtpbfmt: on
+foo: "bar"
 bar {
   baz: "qux"
-# txtpbfmt: off
+   # txtpbfmt: off
              # comment
 # comment
  no_format {
@@ -1499,6 +1506,7 @@ bar {
 should_format {
   foo: "bar"
 }
+
 # txtpbfmt: off
       no_format {    foo:   "bar"  } # txtpbfmt: on
 should_format {
