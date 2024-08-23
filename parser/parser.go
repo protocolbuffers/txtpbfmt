@@ -876,6 +876,8 @@ func (p *parser) readFormatterDisabledBlock() (string, error) {
 			if !p.consume('\n') {
 				return "", fmt.Errorf("txtpbfmt on should be followed by newline at %s", p.errorContext())
 			}
+			// Retain up to one blank line.
+			p.consume('\n')
 			return string(p.in[start:p.index]), nil
 		}
 	}

@@ -1476,6 +1476,8 @@ bar {
 }
       enabled: {TEMPLATE_plx}
 # txtpbfmt: on
+
+
 }
   should_format {
 foo:  "bar"
@@ -1502,6 +1504,7 @@ bar {
 }
       enabled: {TEMPLATE_plx}
 # txtpbfmt: on
+
 }
 should_format {
   foo: "bar"
