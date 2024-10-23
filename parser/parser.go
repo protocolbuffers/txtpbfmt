@@ -208,7 +208,7 @@ func sameLineBrackets(in []byte, allowTripleQuotedStrings bool) (map[int]bool, e
 				continue
 			}
 			if len(open) == 0 {
-				return nil, fmt.Errorf("too many '}' or '>' at index %d", i)
+				return nil, fmt.Errorf("too many '}' or '>' at line %d, index %d", line, i)
 			}
 			last := len(open) - 1
 			br := open[last]
