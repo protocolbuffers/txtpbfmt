@@ -1531,7 +1531,13 @@ a, b,
   c
   # txtpbfmt: on
 ]
-`}}
+`}, {
+		name: "carriage return \\r is formatted away",
+		in:   `foo: "bar"` + "\r" + `baz: "bat"` + "\r",
+		out:  `foo: "bar"` + "\n" + `baz: "bat"` + "\n"}, {
+		name: "Windows-style newline \\r\\n is formatted away",
+		in:   `foo: "bar"` + "\r\n" + `baz: "bat"` + "\r\n",
+		out:  `foo: "bar"` + "\n" + `baz: "bat"` + "\n"}}
 	for _, input := range inputs {
 		out, err := Format([]byte(input.in))
 		if err != nil {
