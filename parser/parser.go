@@ -558,7 +558,7 @@ func (p *parser) consumeOptionalSeparator() error {
 	if p.index > 0 && !p.isBlankSep(p.index-1) {
 		// If an unnamed field immediately follows non-whitespace, we require a separator character first (key_one:,:value_two instead of key_one::value_two)
 		if p.consume(':') {
-			return fmt.Errorf("parser encountered unexpected : character (should be whitespace, or a ,; separator)")
+			return fmt.Errorf("parser encountered unexpected character ':' (should be whitespace, ',', or ';')")
 		}
 	}
 
