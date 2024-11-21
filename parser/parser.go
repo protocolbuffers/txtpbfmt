@@ -1102,7 +1102,7 @@ func (p *parser) readTemplate() string {
 				}
 			}
 		}
-		if i < p.length && p.in[i] == '%' {
+		if p.in[i] == '%' {
 			i++
 			break
 		}
