@@ -2664,7 +2664,12 @@ foo: "\"bar\""`,
 foo: '"bar"'
 `,
 	},
-	}
+	{
+		name: "carriage returns",
+		in: "a{\r\n}\r\n",
+		out: "a {\n}\n",
+	},
+    }
 	// Test FormatWithConfig with inputs.
 	for _, input := range inputs {
 		got, err := FormatWithConfig([]byte(input.in), input.config)

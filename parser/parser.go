@@ -584,6 +584,7 @@ func (p *parser) parse(isRoot bool) (result []*ast.Node, endPos ast.Position, er
 		// p.parse is often invoked with the index pointing at the newline character
 		// after the previous item. We should still report that this item starts in
 		// the next line.
+		p.consume('\r')
 		p.consume('\n')
 		startPos := p.position()
 
@@ -853,13 +854,15 @@ func (p *parser) readFormatterDisabledBlock() (string, error) {
 	previousPos := p.position()
 	start := p.index
 	for p.index < p.length && p.isBlankSep(p.index) {
-		if p.consume('\n') {
+		if p.consume('\n') || (p.consume('\r') && p.consume('\n')) {
 			// Include up to one blank line before the 'off' directive.
 			start = p.index - 1
 		} else if p.consume(' ') {
 			// Do nothing. Side-effect is to advance p.index.
 		} else if p.consume('\t') {
 			// Do nothing. Side-effect is to advance p.index.
+		} else {
+			return "", fmt.Errorf("unhandled isBlankSep at %s", p.errorContext())
 		}
 	}
 	offStart := p.position()
