@@ -1,6 +1,6 @@
 module github.com/protocolbuffers/txtpbfmt
 
-go 1.18
+go 1.19
 
 require (
 	github.com/golang/glog v1.2.4
