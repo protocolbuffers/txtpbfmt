@@ -179,6 +179,20 @@ func getChildValueByFieldSubfield(field, subfield string, n *Node) *Value {
 	return n.getChildValue(subfield)
 }
 
+func getChildValueByFieldSubfieldPath(field string, subfieldPath []string, n *Node) *Value {
+	if field != "" && n.Name != field {
+		return nil
+	}
+	nodes := GetFromPath(n.Children, subfieldPath)
+	if len(nodes) != 1 {
+		return nil
+	}
+	if len(nodes[0].Values) != 1 {
+		return nil
+	}
+	return nodes[0].Values[0]
+}
+
 // ByFieldSubfield returns a NodeLess function that orders adjacent message nodes with the given
 // field name by the given subfield name value. If no field name is provided, it compares the
 // subfields of any adjacent nodes with matching names.
@@ -189,6 +203,26 @@ func ByFieldSubfield(field, subfield string) NodeLess {
 		}
 		vi := getChildValueByFieldSubfield(field, subfield, ni)
 		vj := getChildValueByFieldSubfield(field, subfield, nj)
+		if vi == nil {
+			return vj != nil
+		}
+		if vj == nil {
+			return false
+		}
+		return vi.Value < vj.Value
+	}
+}
+
+// ByFieldSubfieldPath returns a NodeLess function that orders adjacent message nodes with the given
+// field name by the given subfield path value. If no field name is provided, it compares the
+// subfields of any adjacent nodes with matching names.
+func ByFieldSubfieldPath(field string, subfieldPath []string) NodeLess {
+	return func(_, ni, nj *Node, isWholeSlice bool) bool {
+		if isWholeSlice {
+			return false
+		}
+		vi := getChildValueByFieldSubfieldPath(field, subfieldPath, ni)
+		vj := getChildValueByFieldSubfieldPath(field, subfieldPath, nj)
 		if vi == nil {
 			return vj != nil
 		}

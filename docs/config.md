@@ -118,11 +118,17 @@ Sort adjacent scalar fields of the same field name by their contents.
 ## SortRepeatedFieldsBySubfield
 `# txtpbfmt: sort_repeated_fields_by_subfield=[subfieldSpec]`
 
-Sort adjacent message fields of the given field name by the contents of the given subfield.
-`subfieldSpec` is of one of two forms
+Sort adjacent message fields of the given field name by the contents of the
+given subfield path.
 
-* `fieldName.subfieldName`, which will sort fields named `fieldName` by the value of their subfield named `subfieldName`.
-* `subfieldName`, which will sort any field by its subfield named `subfieldName`
+`subfieldSpec` is of one of two forms:
+
+*   `fieldName.subfieldName1.subfieldName2...subfieldNameN`, which will sort
+    fields named `fieldName` by the value of the final subfield named
+    `subfieldNameN`.
+
+*   `subfieldName`, which will sort any field by its subfield named
+    `subfieldName`
 
 ### Before formatting
 

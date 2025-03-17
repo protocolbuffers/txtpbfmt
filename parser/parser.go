@@ -41,8 +41,9 @@ type Config struct {
 	// Sort adjacent scalar fields of the same field name by their contents.
 	SortRepeatedFieldsByContent bool
 
-	// Sort adjacent message fields of the given field name by the contents of the given subfield.
-	// Format: either "field_name.subfield_name" or just "subfield_name" (applies to all field names).
+	// Sort adjacent message fields of the given field name by the contents of the given subfield path.
+	// Format: either "field_name.subfield_name.subfield_name2...subfield_nameN" or just
+	// "subfield_name" (applies to all field names).
 	SortRepeatedFieldsBySubfield []string
 
 	// Map from Node.Name to the order of all fields within that node. See AddFieldSortOrder().
@@ -1513,9 +1514,9 @@ func nodeSortFunction(c Config) NodeSortFunction {
 		sorter = ast.ChainNodeLess(sorter, ast.ByFieldValue)
 	}
 	for _, sf := range c.SortRepeatedFieldsBySubfield {
-		field, subfield := parseSubfieldSpec(sf)
-		if subfield != "" {
-			sorter = ast.ChainNodeLess(sorter, ast.ByFieldSubfield(field, subfield))
+		field, subfieldPath := parseSubfieldSpec(sf)
+		if len(subfieldPath) > 0 {
+			sorter = ast.ChainNodeLess(sorter, ast.ByFieldSubfieldPath(field, subfieldPath))
 		}
 	}
 	if sorter != nil {
@@ -1530,14 +1531,14 @@ func nodeSortFunction(c Config) NodeSortFunction {
 	return nil
 }
 
-// Returns the field and subfield parts of spec "{field}.{subfield}".
+// Returns the field and subfield path parts of spec "{field}.{subfield1}.{subfield2}...".
 // Spec without a dot is considered to be "{subfield}".
-func parseSubfieldSpec(subfieldSpec string) (field string, subfield string) {
-	parts := strings.SplitN(subfieldSpec, ".", 2)
+func parseSubfieldSpec(subfieldSpec string) (field string, subfieldPath []string) {
+	parts := strings.Split(subfieldSpec, ".")
 	if len(parts) == 1 {
-		return "", parts[0]
+		return "", parts
 	}
-	return parts[0], parts[1]
+	return parts[0], parts[1:]
 }
 
 func nodeFilterFunction(c Config) NodeFilterFunction {

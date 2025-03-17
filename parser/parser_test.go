@@ -1235,6 +1235,121 @@ presubmit: {
   }
 }
 `}, {
+		name: "sort by deeper subfield path",
+		in: `# txtpbfmt: sort_repeated_fields_by_subfield=test.metadata.identifiers.id
+presubmit: {
+  test {
+    metadata {
+      identifiers {
+        id: 4
+      }
+    }
+  }
+  test {
+    metadata {
+      identifiers {
+        id: 2
+      }
+    }
+  }
+}
+`,
+		out: `# txtpbfmt: sort_repeated_fields_by_subfield=test.metadata.identifiers.id
+presubmit: {
+  test {
+    metadata {
+      identifiers {
+        id: 2
+      }
+    }
+  }
+  test {
+    metadata {
+      identifiers {
+        id: 4
+      }
+    }
+  }
+}
+`}, {
+		name: "No sort for repeated final subfield",
+		in: `# txtpbfmt: sort_repeated_fields_by_subfield=test.metadata.identifiers.id
+presubmit: {
+  test {
+    metadata {
+      identifiers {
+        id: 3
+        id: 4
+      }
+    }
+  }
+  test {
+    metadata {
+      identifiers {
+        id: 1
+        id: 2
+      }
+    }
+  }
+}
+`,
+		out: `# txtpbfmt: sort_repeated_fields_by_subfield=test.metadata.identifiers.id
+presubmit: {
+  test {
+    metadata {
+      identifiers {
+        id: 3
+        id: 4
+      }
+    }
+  }
+  test {
+    metadata {
+      identifiers {
+        id: 1
+        id: 2
+      }
+    }
+  }
+}
+`}, {
+		name: "No sort for message final subfield",
+		in: `# txtpbfmt: sort_repeated_fields_by_subfield=test.metadata.identifiers
+presubmit: {
+  test {
+    metadata {
+      identifiers {
+        id: 4
+      }
+    }
+  }
+  test {
+    metadata {
+      identifiers {
+        id: 2
+      }
+    }
+  }
+}
+`,
+		out: `# txtpbfmt: sort_repeated_fields_by_subfield=test.metadata.identifiers
+presubmit: {
+  test {
+    metadata {
+      identifiers {
+        id: 4
+      }
+    }
+  }
+  test {
+    metadata {
+      identifiers {
+        id: 2
+      }
+    }
+  }
+}
+`}, {
 		// In this test multiple subfields of `test` are given. The expected behavior is: first sort by
 		// test.id; in case of a tie, sort by test.type; in case of a tie again, sort by test.name.
 		name: "sort by multiple subfield values",
@@ -2663,13 +2778,12 @@ foo: "\"bar\""`,
 		out: `# txtpbfmt: smartquotes
 foo: '"bar"'
 `,
-	},
-	{
+	}, {
 		name: "carriage returns",
-		in: "a{\r\n}\r\n",
-		out: "a {\n}\n",
+		in:   "a{\r\n}\r\n",
+		out:  "a {\n}\n",
 	},
-    }
+	}
 	// Test FormatWithConfig with inputs.
 	for _, input := range inputs {
 		got, err := FormatWithConfig([]byte(input.in), input.config)
