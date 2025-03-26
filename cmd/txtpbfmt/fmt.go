@@ -5,12 +5,12 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"flag"
 	"fmt"
 	"io/ioutil"
 	"os"
 	"strings"
 
-	"flag"
 	// Google internal base/go package, commented out by copybara
 	log "github.com/golang/glog"
 	"github.com/protocolbuffers/txtpbfmt/parser"
