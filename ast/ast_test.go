@@ -69,6 +69,66 @@ func TestChainNodeLess(t *testing.T) {
 	}
 }
 
+func TestChainNodeLessReverse(t *testing.T) {
+	byFirstChar := func(_, ni, nj *ast.Node, isWholeSlice bool) bool {
+		return ni.Name[0] < nj.Name[0]
+	}
+	bySecondChar := func(_, ni, nj *ast.Node, isWholeSlice bool) bool {
+		return ni.Name[1] < nj.Name[1]
+	}
+	tests := []struct {
+		name  string
+		a     ast.NodeLess
+		b     ast.NodeLess
+		names []string
+		want  []string
+	}{{
+		name:  "nil + byFirstChar",
+		a:     nil,
+		b:     byFirstChar,
+		names: []string{"c", "b", "z", "a"},
+		want:  []string{"z", "c", "b", "a"},
+	}, {
+		name:  "byFirstChar + nil",
+		a:     nil,
+		b:     byFirstChar,
+		names: []string{"c", "b", "z", "a"},
+		want:  []string{"z", "c", "b", "a"},
+	}, {
+		name:  "byFirstChar + bySecondChar",
+		a:     byFirstChar,
+		b:     bySecondChar,
+		names: []string{"zc", "bb", "za", "aa", "ac", "ba", "bc", "ab", "zb"},
+		want:  []string{"zc", "zb", "za", "bc", "bb", "ba", "ac", "ab", "aa"},
+	}, {
+		name:  "bySecondChar + byFirstChar",
+		a:     bySecondChar,
+		b:     byFirstChar,
+		names: []string{"zc", "bb", "za", "aa", "ac", "ba", "bc", "ab", "zb"},
+		want:  []string{"zc", "bc", "ac", "zb", "bb", "ab", "za", "ba", "aa"},
+	}}
+	// Map strings into Node names, sort Nodes, map Node names into strings, return reverse sorted names.
+	sortNames := func(names []string, less ast.NodeLess) []string {
+		ns := []*ast.Node{}
+		for _, n := range names {
+			ns = append(ns, &ast.Node{Name: n})
+		}
+		ast.SortNodes(nil /* parent */, ns, less, ast.ReverseOrdering(true))
+		rs := []string{}
+		for _, n := range ns {
+			rs = append(rs, n.Name)
+		}
+		return rs
+	}
+	for _, tc := range tests {
+		less := ast.ChainNodeLess(tc.a, tc.b)
+		got := sortNames(tc.names, less)
+		if diff := cmp.Diff(tc.want, got); diff != "" {
+			t.Errorf("%s reverse sorting %v returned diff (-want, +got):\n%s", tc.name, tc.names, diff)
+		}
+	}
+}
+
 func TestGetFromPath(t *testing.T) {
 	content := `first {
   second {

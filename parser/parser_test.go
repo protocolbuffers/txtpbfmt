@@ -1149,7 +1149,89 @@ presubmit: {
   }
 }
 `}, {
-		name: "blank lines before comment blocks are collapsed to one",
+		name: "sort fields and values in reverse order",
+		in: `# txtpbfmt: sort_fields_by_field_name
+# txtpbfmt: sort_repeated_fields_by_content
+# txtpbfmt: reverse_sort
+presubmit: {
+  auto_reviewers: "reviewerB"
+  check_contents: {
+    action: [
+      # Should go after SUBMIT
+      REVIEW,
+      SUBMIT
+    ]
+    # Should go after EDIT
+    operation: ADD
+    operation: EDIT
+    prohibited_regexp: "UnsafeFunction"
+    check_delta_only: true
+  }
+  # Should go after reviewerB
+  auto_reviewers: "reviewerA"
+}
+`,
+		out: `# txtpbfmt: sort_fields_by_field_name
+# txtpbfmt: sort_repeated_fields_by_content
+# txtpbfmt: reverse_sort
+presubmit: {
+  check_contents: {
+    prohibited_regexp: "UnsafeFunction"
+    operation: EDIT
+    # Should go after EDIT
+    operation: ADD
+    check_delta_only: true
+    action: [
+      SUBMIT,
+      # Should go after SUBMIT
+      REVIEW
+    ]
+  }
+  auto_reviewers: "reviewerB"
+  # Should go after reviewerB
+  auto_reviewers: "reviewerA"
+}
+`}, {
+		name: "reverse sort does nothing without another sort_* config option",
+		in: `# txtpbfmt: reverse_sort
+presubmit: {
+  auto_reviewers: "reviewerB"
+  check_contents: {
+    action: [
+      # Should go after SUBMIT
+      REVIEW,
+      SUBMIT
+    ]
+    # Should go after EDIT
+    operation: ADD
+    operation: EDIT
+    prohibited_regexp: "UnsafeFunction"
+    check_delta_only: true
+  }
+  # Should go after reviewerB
+  auto_reviewers: "reviewerA"
+}
+`,
+		out: `# txtpbfmt: reverse_sort
+presubmit: {
+  auto_reviewers: "reviewerB"
+  check_contents: {
+    action: [
+      # Should go after SUBMIT
+      REVIEW,
+      SUBMIT
+    ]
+    # Should go after EDIT
+    operation: ADD
+    operation: EDIT
+    prohibited_regexp: "UnsafeFunction"
+    check_delta_only: true
+  }
+  # Should go after reviewerB
+  auto_reviewers: "reviewerA"
+}
+`}, {
+		name: "blank lines are collapsed to one",
 		in: `# txtpbfmt: sort_repeated_fields_by_content
 presubmit: {
   check_contents: {
@@ -1179,7 +1261,7 @@ presubmit: {
   }
 }
 `}, {
-		name: "blank lines before comment blocks are collapsed to one",
+		name: "blank line after comment separates it from the node",
 		in: `# txtpbfmt: sort_repeated_fields_by_content
 presubmit: {
   check_contents: {
@@ -1235,6 +1317,43 @@ presubmit: {
   }
 }
 `}, {
+		name: "reverse sort by subfield values",
+		in: `# txtpbfmt: sort_repeated_fields_by_subfield=operation.name
+# txtpbfmt: sort_repeated_fields_by_subfield=test.id
+# txtpbfmt: reverse_sort
+presubmit: {
+  operation {
+    name: ADD
+  }
+  operation {
+    name: EDIT
+  }
+  test {
+    id: 2
+  }
+  test {
+    id: 4
+  }
+}
+`,
+		out: `# txtpbfmt: sort_repeated_fields_by_subfield=operation.name
+# txtpbfmt: sort_repeated_fields_by_subfield=test.id
+# txtpbfmt: reverse_sort
+presubmit: {
+  operation {
+    name: EDIT
+  }
+  operation {
+    name: ADD
+  }
+  test {
+    id: 4
+  }
+  test {
+    id: 2
+  }
+}
+`}, {
 		name: "sort by deeper subfield path",
 		in: `# txtpbfmt: sort_repeated_fields_by_subfield=test.metadata.identifiers.id
 presubmit: {
@@ -1267,6 +1386,45 @@ presubmit: {
     metadata {
       identifiers {
         id: 4
+      }
+    }
+  }
+}
+`}, {
+		name: "reverse sort by deeper subfield path",
+		in: `# txtpbfmt: sort_repeated_fields_by_subfield=test.metadata.identifiers.id
+# txtpbfmt: reverse_sort
+presubmit: {
+  test {
+    metadata {
+      identifiers {
+        id: 2
+      }
+    }
+  }
+  test {
+    metadata {
+      identifiers {
+        id: 4
+      }
+    }
+  }
+}
+`,
+		out: `# txtpbfmt: sort_repeated_fields_by_subfield=test.metadata.identifiers.id
+# txtpbfmt: reverse_sort
+presubmit: {
+  test {
+    metadata {
+      identifiers {
+        id: 4
+      }
+    }
+  }
+  test {
+    metadata {
+      identifiers {
+        id: 2
       }
     }
   }
@@ -1358,36 +1516,36 @@ presubmit: {
 # txtpbfmt: sort_repeated_fields_by_subfield=test.type
 # txtpbfmt: sort_repeated_fields_by_subfield=test.name
 presubmit: {
-operation {
-  name: EDIT
-}
-operation {
-  name: ADD
-}
-test {
-  id: 4
-  name: bar
-  unrelated_field: 1
-  type: type_1
-}
-test {
-  id: 2
-  name: foo
-  unrelated_field: 3
-  type: type_2
-}
-test {
-  id: 2
-  name: baz
-  unrelated_field: 2
-  type: type_1
-}
-test {
-  id: 2
-  name: bar
-  unrelated_field: 1
-  type: type_2
-}
+  operation {
+    name: EDIT
+  }
+  operation {
+    name: ADD
+  }
+  test {
+    id: 4
+    name: bar
+    unrelated_field: 1
+    type: type_1
+  }
+  test {
+    id: 2
+    name: foo
+    unrelated_field: 3
+    type: type_2
+  }
+  test {
+    id: 2
+    name: baz
+    unrelated_field: 2
+    type: type_1
+  }
+  test {
+    id: 2
+    name: bar
+    unrelated_field: 1
+    type: type_2
+  }
 }
 `,
 		out: `# txtpbfmt: sort_repeated_fields_by_subfield=operation.name
@@ -1427,6 +1585,86 @@ presubmit: {
   }
 }
 `}, {
+		// In this test multiple subfields of `test` are given. The expected behavior is: first reverse
+		// sort by test.id; in case of a tie, reverse sort by test.type; in case of a tie again, reverse
+		// sort by test.name.
+		name: "reverse sort by multiple subfield values",
+		in: `# txtpbfmt: sort_repeated_fields_by_subfield=operation.name
+# txtpbfmt: sort_repeated_fields_by_subfield=test.id
+# txtpbfmt: sort_repeated_fields_by_subfield=test.type
+# txtpbfmt: reverse_sort
+# txtpbfmt: sort_repeated_fields_by_subfield=test.name
+presubmit: {
+  operation {
+    name: ADD
+  }
+  operation {
+    name: EDIT
+  }
+  test {
+    id: 2
+    name: foo
+    unrelated_field: 3
+    type: type_2
+  }
+  test {
+    id: 4
+    name: bar
+    unrelated_field: 1
+    type: type_1
+  }
+  test {
+    id: 2
+    name: baz
+    unrelated_field: 2
+    type: type_1
+  }
+  test {
+    id: 2
+    name: bar
+    unrelated_field: 1
+    type: type_2
+  }
+}
+`,
+		out: `# txtpbfmt: sort_repeated_fields_by_subfield=operation.name
+# txtpbfmt: sort_repeated_fields_by_subfield=test.id
+# txtpbfmt: sort_repeated_fields_by_subfield=test.type
+# txtpbfmt: reverse_sort
+# txtpbfmt: sort_repeated_fields_by_subfield=test.name
+presubmit: {
+  operation {
+    name: EDIT
+  }
+  operation {
+    name: ADD
+  }
+  test {
+    id: 4
+    name: bar
+    unrelated_field: 1
+    type: type_1
+  }
+  test {
+    id: 2
+    name: foo
+    unrelated_field: 3
+    type: type_2
+  }
+  test {
+    id: 2
+    name: bar
+    unrelated_field: 1
+    type: type_2
+  }
+  test {
+    id: 2
+    name: baz
+    unrelated_field: 2
+    type: type_1
+  }
+}
+`}, {
 		name: "sort and remove duplicates",
 		in: `# txtpbfmt: sort_fields_by_field_name
 # txtpbfmt: sort_repeated_fields_by_content
@@ -1462,6 +1700,45 @@ presubmit: {
     operation: EDIT
     prohibited_regexp: "UnsafeFunction"
   }
+}
+`}, {
+		name: "reverse sort and remove duplicates",
+		in: `# txtpbfmt: sort_fields_by_field_name
+# txtpbfmt: sort_repeated_fields_by_content
+# txtpbfmt: reverse_sort
+# txtpbfmt: remove_duplicate_values_for_repeated_fields
+presubmit: {
+  auto_reviewers: "reviewerA"
+  # Should go before reviewerA
+  auto_reviewers: "reviewerB"
+  check_contents: {
+    operation: ADD
+    operation: EDIT
+    # Should be removed
+    operation: EDIT
+    prohibited_regexp: "UnsafeFunction"
+    # Should go after operation: ADD
+    check_delta_only: true
+  }
+  # Should be removed
+  auto_reviewers: "reviewerA"
+}
+`,
+		out: `# txtpbfmt: sort_fields_by_field_name
+# txtpbfmt: sort_repeated_fields_by_content
+# txtpbfmt: reverse_sort
+# txtpbfmt: remove_duplicate_values_for_repeated_fields
+presubmit: {
+  check_contents: {
+    prohibited_regexp: "UnsafeFunction"
+    operation: EDIT
+    operation: ADD
+    # Should go after operation: ADD
+    check_delta_only: true
+  }
+  # Should go before reviewerA
+  auto_reviewers: "reviewerB"
+  auto_reviewers: "reviewerA"
 }
 `}, {
 		name: "multiple groups of repeated fields",
@@ -1507,6 +1784,51 @@ field: "b"
 message: { id: "a" }
 message: { id: "b" }
 `}, {
+		name: "reverse sort multiple groups of repeated fields",
+		in: `# txtpbfmt: sort_repeated_fields_by_content
+# txtpbfmt: sort_repeated_fields_by_subfield=id
+# txtpbfmt: reverse_sort
+
+# field a
+field: "a"
+
+# field b
+field: "b"
+message: { id: "a" }
+message: { id: "b" }
+
+# new group
+
+# field a
+field: "a"
+
+# field b
+field: "b"
+message: { id: "a" }
+message: { id: "b" }
+`,
+		out: `# txtpbfmt: sort_repeated_fields_by_content
+# txtpbfmt: sort_repeated_fields_by_subfield=id
+# txtpbfmt: reverse_sort
+
+# field b
+field: "b"
+
+# field a
+field: "a"
+message: { id: "b" }
+message: { id: "a" }
+
+# new group
+
+# field b
+field: "b"
+
+# field a
+field: "a"
+message: { id: "b" }
+message: { id: "a" }
+`}, {
 		name: "detached comment creates a new group for sorting",
 		in: `# txtpbfmt: sort_repeated_fields_by_content
 
@@ -1528,6 +1850,35 @@ field: "a"
 
 # field c
 field: "c"
+
+# new group - the fields below don't get sorted with the fields above
+
+# field b
+field: "b"
+`}, {
+		name: "detached comment creates a new group for reverse sorting",
+		in: `# txtpbfmt: sort_repeated_fields_by_content
+# txtpbfmt: reverse_sort
+
+# field a
+field: "a"
+
+# field c
+field: "c"
+
+# new group - the fields below don't get sorted with the fields above
+
+# field b
+field: "b"
+`,
+		out: `# txtpbfmt: sort_repeated_fields_by_content
+# txtpbfmt: reverse_sort
+
+# field c
+field: "c"
+
+# field a
+field: "a"
 
 # new group - the fields below don't get sorted with the fields above
 

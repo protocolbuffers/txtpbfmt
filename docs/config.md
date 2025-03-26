@@ -138,6 +138,21 @@ given subfield path.
 
 [Example](examples/sort_repeated_fields_by_subfield.OUT.textproto)
 
+## ReverseSort
+
+`# txtpbfmt: reverse_sort`
+
+Sorts all `sort_*` fields in descending order instead of the default ascending
+order. Does nothing if not used with at least 1 other `sort_*` field.
+
+### Before formatting
+
+[Example](examples/reverse_sort.IN.textproto)
+
+### After formatting
+
+[Example](examples/reverse_sort.OUT.textproto)
+
 ## WrapHTMLStrings
 `# txtpbfmt: wrap_html_strings`
 

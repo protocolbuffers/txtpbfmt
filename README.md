@@ -1,6 +1,7 @@
 # Text Proto Formatter
 
-`txtpbfmt` parses, edits and formats text proto files in a way that preserves comments.
+`txtpbfmt` parses, edits and formats text proto files in a way that preserves
+comments.
 
 This saves development (read/edit/review) time and enables automated edits.
 

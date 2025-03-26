@@ -46,6 +46,9 @@ type Config struct {
 	// "subfield_name" (applies to all field names).
 	SortRepeatedFieldsBySubfield []string
 
+	// Sort the Sort* fields by descending order instead of ascending order.
+	ReverseSort bool
+
 	// Map from Node.Name to the order of all fields within that node. See AddFieldSortOrder().
 	fieldSortOrder map[string][]string
 
@@ -388,6 +391,8 @@ func addToConfig(metaComment string, c *Config) error {
 			return fmt.Errorf("format should be %s=<string>, got: %s", key, metaComment)
 		}
 		c.SortRepeatedFieldsBySubfield = append(c.SortRepeatedFieldsBySubfield, val)
+	case "reverse_sort":
+		c.ReverseSort = true
 	case "wrap_strings_at_column":
 		// If multiple of this MetaComment exists in the file, take the last one.
 		if !hasEqualSign {
@@ -1521,7 +1526,7 @@ func nodeSortFunction(c Config) NodeSortFunction {
 	}
 	if sorter != nil {
 		return func(parent *ast.Node, ns []*ast.Node) error {
-			ast.SortNodes(parent, ns, sorter)
+			ast.SortNodes(parent, ns, sorter, ast.ReverseOrdering(c.ReverseSort))
 			if c.RequireFieldSortOrderToMatchAllFieldsInNode {
 				return unsortedFieldCollector.asError()
 			}
@@ -1550,6 +1555,9 @@ func nodeFilterFunction(c Config) NodeFilterFunction {
 
 func valuesSortFunction(c Config) ValuesSortFunction {
 	if c.SortRepeatedFieldsByContent {
+		if c.ReverseSort {
+			return ast.SortValuesReverse
+		}
 		return ast.SortValues
 	}
 	return nil

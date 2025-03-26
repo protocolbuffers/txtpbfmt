@@ -103,14 +103,44 @@ func ChainNodeLess(first, second NodeLess) NodeLess {
 	}
 }
 
+type sortOptions struct {
+	reverse bool
+}
+
+// A SortOption configures SortNodes.
+type SortOption func(*sortOptions)
+
+// ReverseOrdering controls whether to sort the Nodes in ascending or descending order. By default
+// the Nodes are sorted in ascending order. By setting this option to true, the Nodes will be sorted
+// in descending order.
+//
+// Default: false.
+func ReverseOrdering(enabled bool) SortOption {
+	return func(opts *sortOptions) {
+		opts.reverse = enabled
+	}
+}
+
 // SortNodes sorts nodes by the given less function.
-func SortNodes(parent *Node, ns []*Node, less NodeLess) {
-	sort.Stable(sortableNodes(parent, ns, less, true /* isWholeSlice */))
+func SortNodes(parent *Node, ns []*Node, less NodeLess, opts ...SortOption) {
+	var options sortOptions
+	for _, opt := range opts {
+		opt(&options)
+	}
+	if options.reverse {
+		sort.Stable(sort.Reverse(sortableNodes(parent, ns, less, true /* isWholeSlice */)))
+	} else {
+		sort.Stable(sortableNodes(parent, ns, less, true /* isWholeSlice */))
+	}
 	end := 0
 	for begin := 0; begin < len(ns); begin = end {
 		for end = begin + 1; end < len(ns) && ns[begin].Name == ns[end].Name; end++ {
 		}
-		sort.Stable(sortableNodes(parent, ns[begin:end], less, false /* isWholeSlice */))
+		if options.reverse {
+			sort.Stable(sort.Reverse(sortableNodes(parent, ns[begin:end], less, false /* isWholeSlice */)))
+		} else {
+			sort.Stable(sortableNodes(parent, ns[begin:end], less, false /* isWholeSlice */))
+		}
 	}
 }
 
@@ -342,6 +372,13 @@ func (v *Value) fix() fixData {
 func SortValues(values []*Value) {
 	sort.SliceStable(values, func(i, j int) bool {
 		return values[i].Value < values[j].Value
+	})
+}
+
+// SortValuesReverse reverse sorts values by their value.
+func SortValuesReverse(values []*Value) {
+	sort.SliceStable(values, func(i, j int) bool {
+		return values[i].Value > values[j].Value
 	})
 }
 
