@@ -181,6 +181,57 @@ func FormatWithConfig(in []byte, c Config) ([]byte, error) {
 	return PrettyBytes(nodes, 0), nil
 }
 
+type bracketState struct {
+	insideComment            bool
+	insideString             bool
+	insideTemplate           bool
+	insideTripleQuotedString bool
+	stringDelimiter          string
+	isEscapedChar            bool
+}
+
+func (s *bracketState) processChar(c byte, i int, in []byte, allowTripleQuotedStrings bool) {
+	if s.isEscapedChar {
+		s.isEscapedChar = false
+	} else if c == '\\' && s.insideString && !s.insideTripleQuotedString {
+		s.isEscapedChar = true
+	}
+
+	switch c {
+	case '#':
+		if !s.insideString {
+			s.insideComment = true
+		}
+	case '%':
+		if !s.insideComment && !s.insideString {
+			s.insideTemplate = !s.insideTemplate
+		}
+	case '"', '\'':
+		if s.insideComment {
+			return
+		}
+		delim := string(c)
+		tripleQuoted := false
+		if allowTripleQuotedStrings && i+3 <= len(in) {
+			triple := string(in[i : i+3])
+			if triple == `"""` || triple == `'''` {
+				delim = triple
+				tripleQuoted = true
+			}
+		}
+		if s.insideString {
+			if s.stringDelimiter == delim && (s.insideTripleQuotedString || !s.isEscapedChar) {
+				s.insideString = false
+				s.insideTripleQuotedString = false
+			}
+		} else {
+			s.insideString = true
+			s.insideTripleQuotedString = tripleQuoted
+			s.stringDelimiter = delim
+		}
+	}
+}
+
 // Return the byte-positions of each bracket which has the corresponding close on the
 // same line as a set.
 func sameLineBrackets(in []byte, allowTripleQuotedStrings bool) (map[int]bool, error) {
@@ -191,27 +242,23 @@ func sameLineBrackets(in []byte, allowTripleQuotedStrings bool) (map[int]bool, e
 	}
 	open := []bracket{} // Stack.
 	res := map[int]bool{}
-	insideComment := false
-	insideString := false
-	insideTemplate := false
-	insideTripleQuotedString := false
-	var stringDelimiter string
-	isEscapedChar := false
+	state := bracketState{}
 	for i, c := range in {
+		state.processChar(c, i, in, allowTripleQuotedStrings)
 		switch c {
 		case '\n':
 			line++
-			insideComment = false
+			state.insideComment = false
 		case '{', '<':
-			if insideComment || insideString || insideTemplate {
+			if state.insideComment || state.insideString || state.insideTemplate {
 				continue
 			}
 			open = append(open, bracket{index: i, line: line})
 		case '}', '>':
-			if insideComment || insideString || insideTemplate {
+			if state.insideComment || state.insideString || state.insideTemplate {
 				continue
 			}
-			if len(open) == 0 {
+			if state.insideComment || state.insideString || state.insideTemplate {
 				return nil, fmt.Errorf("too many '}' or '>' at line %d, index %d", line, i)
 			}
 			last := len(open) - 1
@@ -220,55 +267,9 @@ func sameLineBrackets(in []byte, allowTripleQuotedStrings bool) (map[int]bool, e
 			if br.line == line {
 				res[br.index] = true
 			}
-		case '#':
-			if insideString {
-				continue
-			}
-			insideComment = true
-		case '%':
-			if insideComment || insideString {
-				continue
-			}
-			if insideTemplate {
-				insideTemplate = false
-			} else {
-				insideTemplate = true
-			}
-		case '"', '\'':
-			if insideComment {
-				continue
-			}
-			delim := string(c)
-			tripleQuoted := false
-			if allowTripleQuotedStrings && i+3 <= len(in) {
-				triple := string(in[i : i+3])
-				if triple == `"""` || triple == `'''` {
-					delim = triple
-					tripleQuoted = true
-				}
-			}
-
-			if insideString {
-				if stringDelimiter == delim && (insideTripleQuotedString || !isEscapedChar) {
-					insideString = false
-					insideTripleQuotedString = false
-				}
-			} else {
-				insideString = true
-				if tripleQuoted {
-					insideTripleQuotedString = true
-				}
-				stringDelimiter = delim
-			}
-		}
-
-		if isEscapedChar {
-			isEscapedChar = false
-		} else if c == '\\' && insideString && !insideTripleQuotedString {
-			isEscapedChar = true
 		}
 	}
-	if insideString {
+	if state.insideString {
 		return nil, fmt.Errorf("unterminated string literal")
 	}
 	return res, nil
@@ -682,20 +683,10 @@ func (p *parser) parse(isRoot bool) (result []*ast.Node, endPos ast.Position, er
 			break
 		}
 
-		if p.consume('[') {
-			// Read Name (of proto extension).
-			nd.Name = fmt.Sprintf("[%s]", p.readExtension())
-			_ = p.consume(']') // Ignore the ']'.
-		} else {
-			// Read Name.
-			nd.Name = p.readFieldName()
-			if nd.Name == "" && !isRoot && !p.config.AllowUnnamedNodesEverywhere {
-				return nil, ast.Position{}, fmt.Errorf("Failed to find a FieldName at %s", p.errorContext())
-			}
+		if err := p.parseFieldName(nd, isRoot); err != nil {
+			return nil, ast.Position{}, err
 		}
-		if p.config.infoLevel() {
-			p.config.infof("name: %q", nd.Name)
-		}
+
 		// Skip separator.
 		preCommentsBeforeColon, _ := p.skipWhiteSpaceAndReadComments(true /* multiLine */)
 		nd.SkipColon = !p.consume(':')
@@ -703,103 +694,27 @@ func (p *parser) parse(isRoot bool) (result []*ast.Node, endPos ast.Position, er
 		preCommentsAfterColon, _ := p.skipWhiteSpaceAndReadComments(true /* multiLine */)
 
 		if p.consume('{') || p.consume('<') {
-			if p.config.SkipAllColons {
-				nd.SkipColon = true
-			}
-			nd.ChildrenSameLine = p.bracketSameLine[p.index-1]
-			nd.IsAngleBracket = p.config.PreserveAngleBrackets && p.in[p.index-1] == '<'
-			// Recursive call to parse child nodes.
-			nodes, lastPos, err := p.parse( /*isRoot=*/ false)
-			if err != nil {
+			if err := p.parseMessage(nd); err != nil {
 				return nil, ast.Position{}, err
 			}
-			nd.Children = nodes
-			nd.End = lastPos
-
-			nd.ClosingBraceComment = p.readInlineComment()
 		} else if p.consume('[') {
-			openBracketLine := p.line
-
-			// Skip separator.
-			preCommentsAfterListStart := p.readContinuousBlocksOfComments()
-
-			var preComments []string
-			preComments = append(preComments, preCommentsBeforeColon...)
-			preComments = append(preComments, preCommentsAfterColon...)
-			preComments = append(preComments, preCommentsAfterListStart...)
-
-			if p.nextInputIs('{') {
-				// Handle list of nodes.
-				nd.ChildrenAsList = true
-
-				nodes, lastPos, err := p.parse( /*isRoot=*/ true)
-				if err != nil {
-					return nil, ast.Position{}, err
-				}
-				if len(nodes) > 0 {
-					nodes[0].PreComments = preComments
-				}
-
-				nd.Children = nodes
-				nd.End = lastPos
-				nd.ClosingBraceComment = p.readInlineComment()
-				nd.ChildrenSameLine = openBracketLine == p.line
-			} else {
-				// Handle list of values.
-				nd.ValuesAsList = true // We found values in list - keep it as list.
-
-				for ld := p.getLoopDetector(); !p.consume(']') && p.index < p.length; {
-					if err := ld.iter(); err != nil {
-						return nil, ast.Position{}, err
-					}
-
-					// Read each value in the list.
-					vals, err := p.readValues()
-					if err != nil {
-						return nil, ast.Position{}, err
-					}
-					if len(vals) != 1 {
-						return nil, ast.Position{}, fmt.Errorf("multiple-string value not supported (%v). Please add comma explicitly, see http://b/162070952", vals)
-					}
-					if len(preComments) > 0 {
-						// If we read preComments before readValues(), they should go first,
-						// but avoid copy overhead if there are none.
-						vals[0].PreComments = append(preComments, vals[0].PreComments...)
-					}
-
-					// Skip separator.
-					_, _ = p.skipWhiteSpaceAndReadComments(false /* multiLine */)
-					if p.consume(',') {
-						vals[0].InlineComment = p.readInlineComment()
-					}
-
-					nd.Values = append(nd.Values, vals...)
-
-					preComments, _ = p.skipWhiteSpaceAndReadComments(true /* multiLine */)
-				}
-				nd.ChildrenSameLine = openBracketLine == p.line
-
+			if err := p.parseList(nd, preCommentsBeforeColon, preCommentsAfterColon); err != nil {
+				return nil, ast.Position{}, err
+			}
+			if nd.ValuesAsList {
 				res = append(res, nd)
-
-				// Handle comments after last line (or for empty list)
-				nd.PostValuesComments = preComments
-				nd.ClosingBraceComment = p.readInlineComment()
-
-				if err = p.consumeOptionalSeparator(); err != nil {
-					return nil, ast.Position{}, err
-				}
-
 				continue
 			}
 		} else {
 			// Rewind comments.
 			p.rollbackPosition(previousPos)
 			// Handle Values.
+			var err error
 			nd.Values, err = p.readValues()
 			if err != nil {
 				return nil, ast.Position{}, err
 			}
-			if err = p.consumeOptionalSeparator(); err != nil {
+			if err := p.consumeOptionalSeparator(); err != nil {
 				return nil, ast.Position{}, err
 			}
 		}
@@ -809,6 +724,115 @@ func (p *parser) parse(isRoot bool) (result []*ast.Node, endPos ast.Position, er
 		res = append(res, nd)
 	}
 	return res, p.position(), nil
+}
+
+func (p *parser) parseFieldName(nd *ast.Node, isRoot bool) error {
+	if p.consume('[') {
+		// Read Name (of proto extension).
+		nd.Name = fmt.Sprintf("[%s]", p.readExtension())
+		_ = p.consume(']') // Ignore the ']'.
+	} else {
+		// Read Name.
+		nd.Name = p.readFieldName()
+		if nd.Name == "" && !isRoot && !p.config.AllowUnnamedNodesEverywhere {
+			return fmt.Errorf("Failed to find a FieldName at %s", p.errorContext())
+		}
+	}
+	if p.config.infoLevel() {
+		p.config.infof("name: %q", nd.Name)
+	}
+	return nil
+}
+
+func (p *parser) parseMessage(nd *ast.Node) error {
+	if p.config.SkipAllColons {
+		nd.SkipColon = true
+	}
+	nd.ChildrenSameLine = p.bracketSameLine[p.index-1]
+	nd.IsAngleBracket = p.config.PreserveAngleBrackets && p.in[p.index-1] == '<'
+	// Recursive call to parse child nodes.
+	nodes, lastPos, err := p.parse( /*isRoot=*/ false)
+	if err != nil {
+		return err
+	}
+	nd.Children = nodes
+	nd.End = lastPos
+
+	nd.ClosingBraceComment = p.readInlineComment()
+	return nil
+}
+
+func (p *parser) parseList(nd *ast.Node, preCommentsBeforeColon, preCommentsAfterColon []string) error {
+	openBracketLine := p.line
+
+	// Skip separator.
+	preCommentsAfterListStart := p.readContinuousBlocksOfComments()
+
+	var preComments []string
+	preComments = append(preComments, preCommentsBeforeColon...)
+	preComments = append(preComments, preCommentsAfterColon...)
+	preComments = append(preComments, preCommentsAfterListStart...)
+
+	if p.nextInputIs('{') {
+		// Handle list of nodes.
+		nd.ChildrenAsList = true
+
+		nodes, lastPos, err := p.parse( /*isRoot=*/ true)
+		if err != nil {
+			return err
+		}
+		if len(nodes) > 0 {
+			nodes[0].PreComments = preComments
+		}
+
+		nd.Children = nodes
+		nd.End = lastPos
+		nd.ClosingBraceComment = p.readInlineComment()
+		nd.ChildrenSameLine = openBracketLine == p.line
+	} else {
+		// Handle list of values.
+		nd.ValuesAsList = true // We found values in list - keep it as list.
+
+		for ld := p.getLoopDetector(); !p.consume(']') && p.index < p.length; {
+			if err := ld.iter(); err != nil {
+				return err
+			}
+
+			// Read each value in the list.
+			vals, err := p.readValues()
+			if err != nil {
+				return err
+			}
+			if len(vals) != 1 {
+				return fmt.Errorf("multiple-string value not supported (%v). Please add comma explicitly, see http://b/162070952", vals)
+			}
+			if len(preComments) > 0 {
+				// If we read preComments before readValues(), they should go first,
+				// but avoid copy overhead if there are none.
+				vals[0].PreComments = append(preComments, vals[0].PreComments...)
+			}
+
+			// Skip separator.
+			_, _ = p.skipWhiteSpaceAndReadComments(false /* multiLine */)
+			if p.consume(',') {
+				vals[0].InlineComment = p.readInlineComment()
+			}
+
+			nd.Values = append(nd.Values, vals...)
+
+			preComments, _ = p.skipWhiteSpaceAndReadComments(true /* multiLine */)
+		}
+		nd.ChildrenSameLine = openBracketLine == p.line
+
+		// Handle comments after last line (or for empty list)
+		nd.PostValuesComments = preComments
+		nd.ClosingBraceComment = p.readInlineComment()
+
+		if err := p.consumeOptionalSeparator(); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (p *parser) readFieldName() string {
@@ -900,6 +924,25 @@ func (p *parser) readFormatterDisabledBlock() (string, error) {
 	return "", fmt.Errorf("unterminated txtpbfmt off at %s", p.errorContext())
 }
 
+func (p *parser) handleCommentLine(i int, comments []string, insideComment bool, commentBegin int) ([]string, bool) {
+	if insideComment {
+		comments = append(comments, string(p.in[commentBegin:i])) // Exclude the '\n'.
+		insideComment = false
+	}
+	return comments, insideComment
+}
+
+func (p *parser) handleNonCommentLine(i int, foundComment bool, multiLine bool) (int, bool) {
+	if foundComment {
+		i-- // Put back the last '\n' so the caller can detect that we're on case (1).
+		return i, true
+	}
+	if !multiLine {
+		return i, true
+	}
+	return i, false
+}
+
 // skipWhiteSpaceAndReadComments has multiple cases:
 //   - (1) reading a block of comments followed by a blank line
 //   - (2) reading a block of comments followed by non-blank content
@@ -924,16 +967,17 @@ func (p *parser) skipWhiteSpaceAndReadComments(multiLine bool) ([]string, int) {
 			foundComment = true
 			commentBegin = i
 		} else if p.in[i] == '\n' {
-			if insideComment {
-				comments = append(comments, string(p.in[commentBegin:i])) // Exclude the '\n'.
-				insideComment = false
-			} else if foundComment {
-				i-- // Put back the last '\n' so the caller can detect that we're on case (1).
-				break
+			comments, insideComment = p.handleCommentLine(i, comments, insideComment, commentBegin)
+			if !insideComment {
+				var shouldBreak bool
+				i, shouldBreak = p.handleNonCommentLine(i, foundComment, multiLine)
+				if shouldBreak {
+					break
+				}
+				if !foundComment {
+					blankLines++
+				}
 			} else {
-				blankLines++
-			}
-			if !multiLine {
 				break
 			}
 		}
@@ -984,11 +1028,9 @@ func (p *parser) readValues() ([]*ast.Value, error) {
 		values = append(values, p.populateValue(p.readTemplate(), nil))
 		previousPos = p.position()
 	}
-	if p.config.AllowTripleQuotedStrings {
-		v, err := p.readTripleQuotedString()
-		if err != nil {
-			return nil, err
-		}
+	if v, err := p.readTripleQuotedStringValue(); err != nil {
+		return nil, err
+	} else {
 		if v != nil {
 			values = append(values, v)
 			previousPos = p.position()
@@ -996,36 +1038,13 @@ func (p *parser) readValues() ([]*ast.Value, error) {
 	}
 	for p.consume('"') || p.consume('\'') {
 		// Handle string value.
-		stringBegin := p.index - 1 // Index of the quote.
-		i := p.index
-		for ; i < p.length; i++ {
-			if p.in[i] == '\\' {
-				i++ // Skip escaped char.
-				continue
-			}
-			if p.in[i] == '\n' {
-				p.index = i
-				return nil, fmt.Errorf("found literal (unescaped) new line in string at %s", p.errorContext())
-			}
-			if p.in[i] == p.in[stringBegin] {
-				var vl string
-				if p.config.SmartQuotes {
-					vl = smartQuotes(p.advance(i))
-				} else {
-					vl = fixQuotes(p.advance(i))
-				}
-				_ = p.advance(i + 1) // Skip the quote.
-				values = append(values, p.populateValue(vl, preComments))
-
-				previousPos = p.position()
-				preComments, _ = p.skipWhiteSpaceAndReadComments(true /* multiLine */)
-				break
-			}
+		v, err := p.readSingleQuotedStringValue(preComments)
+		if err != nil {
+			return nil, err
 		}
-		if i == p.length {
-			p.index = i
-			return nil, fmt.Errorf("unfinished string at %s", p.errorContext())
-		}
+		values = append(values, v)
+		previousPos = p.position()
+		preComments, _ = p.skipWhiteSpaceAndReadComments(true /* multiLine */)
 	}
 	if previousPos != (ast.Position{}) {
 		// Rewind comments.
@@ -1033,18 +1052,59 @@ func (p *parser) readValues() ([]*ast.Value, error) {
 	} else {
 		i := p.index
 		// Handle other values.
-		for ; i < p.length; i++ {
-			if p.isValueSep(i) {
-				break
-			}
-		}
-		vl := p.advance(i)
-		values = append(values, p.populateValue(vl, preComments))
+		values = append(values, p.readOtherValue(i, preComments))
 	}
 	if p.config.infoLevel() {
 		p.config.infof("values: %v", values)
 	}
 	return values, nil
+}
+
+func (p *parser) readTripleQuotedStringValue() (*ast.Value, error) {
+	if !p.config.AllowTripleQuotedStrings {
+		return nil, nil
+	}
+	return p.readTripleQuotedString()
+}
+
+func (p *parser) readSingleQuotedStringValue(preComments []string) (*ast.Value, error) {
+	stringBegin := p.index - 1 // Index of the quote.
+	i := p.index
+	for ; i < p.length; i++ {
+		if p.in[i] == '\\' {
+			i++ // Skip escaped char.
+			continue
+		}
+		if p.in[i] == '\n' {
+			p.index = i
+			return nil, fmt.Errorf("found literal (unescaped) new line in string at %s", p.errorContext())
+		}
+		if p.in[i] == p.in[stringBegin] {
+			var vl string
+			if p.config.SmartQuotes {
+				vl = smartQuotes(p.advance(i))
+			} else {
+				vl = fixQuotes(p.advance(i))
+			}
+			_ = p.advance(i + 1) // Skip the quote.
+			return p.populateValue(vl, preComments), nil
+		}
+	}
+	if i == p.length {
+		p.index = i
+		return nil, fmt.Errorf("unfinished string at %s", p.errorContext())
+	}
+	return nil, nil
+}
+
+func (p *parser) readOtherValue(i int, preComments []string) *ast.Value {
+	for ; i < p.length; i++ {
+		if p.isValueSep(i) {
+			break
+		}
+	}
+	vl := p.advance(i)
+	return p.populateValue(vl, preComments)
 }
 
 func (p *parser) readTripleQuotedString() (*ast.Value, error) {
@@ -1096,6 +1156,21 @@ func (p *parser) readInlineComment() string {
 	return ""
 }
 
+func (p *parser) readStringInTemplate(i int) int {
+	stringBegin := i - 1 // Index of quote.
+	for ; i < p.length; i++ {
+		if p.in[i] == '\\' {
+			i++ // Skip escaped char.
+			continue
+		}
+		if p.in[i] == p.in[stringBegin] {
+			i++ // Skip end quote.
+			break
+		}
+	}
+	return i
+}
+
 func (p *parser) readTemplate() string {
 	if !p.nextInputIs('%') {
 		return ""
@@ -1103,18 +1178,8 @@ func (p *parser) readTemplate() string {
 	i := p.index + 1
 	for ; i < p.length; i++ {
 		if p.in[i] == '"' || p.in[i] == '\'' {
-			stringBegin := i // Index of quote.
 			i++
-			for ; i < p.length; i++ {
-				if p.in[i] == '\\' {
-					i++ // Skip escaped char.
-					continue
-				}
-				if p.in[i] == p.in[stringBegin] {
-					i++ // Skip end quote.
-					break
-				}
-			}
+			i = p.readStringInTemplate(i)
 		}
 		if i < p.length && p.in[i] == '%' {
 			i++
@@ -1648,17 +1713,7 @@ func (f formatter) writeNode(nd *ast.Node, depth int, isSameLine, asListItems bo
 	if !isSameLine {
 		indent = strings.Repeat(indentSpaces, depth)
 	}
-	for _, comment := range nd.PreComments {
-		if len(comment) == 0 {
-			if !(depth == 0 && index == 0) {
-				f.WriteString("\n")
-			}
-			continue
-		}
-		f.WriteString(indent)
-		f.WriteString(comment)
-		f.WriteString("\n")
-	}
+	f.writePreComments(nd, indent, depth, index)
 
 	if nd.IsCommentOnly() {
 		// The comments have been printed already, no more work to do.
@@ -1683,6 +1738,20 @@ func (f formatter) writeNode(nd *ast.Node, depth int, isSameLine, asListItems bo
 	}
 
 	f.writeNodeClosingBraceComment(nd)
+}
+
+func (f formatter) writePreComments(nd *ast.Node, indent string, depth int, index int) {
+	for _, comment := range nd.PreComments {
+		if len(comment) == 0 {
+			if !(depth == 0 && index == 0) {
+				f.WriteString("\n")
+			}
+			continue
+		}
+		f.WriteString(indent)
+		f.WriteString(comment)
+		f.WriteString("\n")
+	}
 }
 
 func (f formatter) writeNodes(nodes []*ast.Node, depth int, isSameLine, asListItems bool) {
@@ -1775,19 +1844,23 @@ func (f formatter) writeValues(nd *ast.Node, vals []*ast.Value, indent string) {
 	}
 }
 
-func (f formatter) writeValuesAsList(nd *ast.Node, vals []*ast.Value, indent string) {
-	// Checks if it's possible to put whole list in a single line.
-	sameLine := nd.ChildrenSameLine && len(nd.PostValuesComments) == 0
-	if sameLine {
-		// Parser found all children on a same line, but we need to check again.
-		// It's possible that AST was modified after parsing.
-		for _, val := range vals {
-			if len(val.PreComments) > 0 || len(vals[0].InlineComment) > 0 {
-				sameLine = false
-				break
-			}
+func (f formatter) canWriteValuesAsListOnSameLine(nd *ast.Node, vals []*ast.Value) bool {
+	if !nd.ChildrenSameLine || len(nd.PostValuesComments) > 0 {
+		return false
+	}
+	// Parser found all children on a same line, but we need to check again.
+	// It's possible that AST was modified after parsing.
+	for _, val := range vals {
+		if len(val.PreComments) > 0 || len(val.InlineComment) > 0 {
+			return false
 		}
 	}
+	return true
+}
+
+func (f formatter) writeValuesAsList(nd *ast.Node, vals []*ast.Value, indent string) {
+	// Checks if it's possible to put whole list in a single line.
+	sameLine := f.canWriteValuesAsListOnSameLine(nd, vals)
 	sep := ""
 	if !sameLine {
 		sep = "\n" + indent
