@@ -56,6 +56,75 @@ func contentForLogging(content []byte) string {
 	return res
 }
 
+func processPath(path string) error {
+	if strings.HasPrefix(path, "//depot/google3/") {
+		path = strings.Replace(path, "//depot/google3/", "", 1)
+	}
+	displayPath := path
+	if path == stdinPlaceholderPath {
+		displayPath = *stdinDisplayPath
+		log.Info("path ", path, " displayed as ", displayPath)
+	} else {
+		log.Info("path ", path)
+	}
+
+	content, err := read(path)
+	if os.IsNotExist(err) {
+		log.Error("Ignoring path: ", err)
+		return fmt.Errorf("path not found")
+	} else if err != nil {
+		return err
+	}
+
+	// Only pass the verbose logger if its level is enabled.
+	var logger parser.Logger
+	if l := log.V(2); l {
+		logger = l
+	}
+	newContent, err := parser.FormatWithConfig(content, parser.Config{
+		ExpandAllChildren:                      *expandAllChildren,
+		SkipAllColons:                          *skipAllColons,
+		SortFieldsByFieldName:                  *sortFieldsByFieldName,
+		SortRepeatedFieldsByContent:            *sortRepeatedFieldsByContent,
+		SortRepeatedFieldsBySubfield:           strings.Split(*sortRepeatedFieldsBySubfield, ","),
+		RemoveDuplicateValuesForRepeatedFields: *removeDuplicateValuesForRepeatedFields,
+		AllowTripleQuotedStrings:               *allowTripleQuotedStrings,
+		WrapStringsAtColumn:                    *wrapStringsAtColumn,
+		WrapHTMLStrings:                        *wrapHTMLStrings,
+		WrapStringsAfterNewlines:               *wrapStringsAfterNewlines,
+		WrapStringsWithoutWordwrap:             *wrapStringsWithoutWordwrap,
+		PreserveAngleBrackets:                  *preserveAngleBrackets,
+		SmartQuotes:                            *smartQuotes,
+		Logger:                                 logger,
+	})
+	if err != nil {
+		errorf("parser.Format for path %v with content %q returned err %v", displayPath, contentForLogging(content), err)
+		return fmt.Errorf("parser.Format failed")
+	}
+	log.V(2).Infof("New content for path %s: %q", displayPath, newContent)
+
+	return write(path, content, newContent)
+}
+
+func write(path string, content, newContent []byte) error {
+	if path == stdinPlaceholderPath {
+		fmt.Print(string(newContent))
+		return nil
+	}
+	if bytes.Equal(content, newContent) {
+		log.Info("No change for path ", path)
+		return nil
+	}
+	if *dryRun {
+		fmt.Println(string(newContent))
+		return nil
+	}
+	if err := ioutil.WriteFile(path, newContent, 0664); err != nil {
+		return err
+	}
+	return nil
+}
+
 func main() {
 	flag.Parse()
 	paths := flag.Args()
@@ -65,67 +134,11 @@ func main() {
 	log.Info("paths: ", paths)
 	errs := 0
 	for _, path := range paths {
-		if strings.HasPrefix(path, "//depot/google3/") {
-			path = strings.Replace(path, "//depot/google3/", "", 1)
-		}
-		displayPath := path
-		if path == stdinPlaceholderPath {
-			displayPath = *stdinDisplayPath
-			log.Info("path ", path, " displayed as ", displayPath)
-		} else {
-			log.Info("path ", path)
-		}
-
-		content, err := read(path)
-		if os.IsNotExist(err) {
-			log.Error("Ignoring path: ", err)
-			errs++
-			continue
-		} else if err != nil {
-			log.Exit(err)
-		}
-
-		// Only pass the verbose logger if its level is enabled.
-		var logger parser.Logger
-		if l := log.V(2); l {
-			logger = l
-		}
-		newContent, err := parser.FormatWithConfig(content, parser.Config{
-			ExpandAllChildren:                      *expandAllChildren,
-			SkipAllColons:                          *skipAllColons,
-			SortFieldsByFieldName:                  *sortFieldsByFieldName,
-			SortRepeatedFieldsByContent:            *sortRepeatedFieldsByContent,
-			SortRepeatedFieldsBySubfield:           strings.Split(*sortRepeatedFieldsBySubfield, ","),
-			RemoveDuplicateValuesForRepeatedFields: *removeDuplicateValuesForRepeatedFields,
-			AllowTripleQuotedStrings:               *allowTripleQuotedStrings,
-			WrapStringsAtColumn:                    *wrapStringsAtColumn,
-			WrapHTMLStrings:                        *wrapHTMLStrings,
-			WrapStringsAfterNewlines:               *wrapStringsAfterNewlines,
-			WrapStringsWithoutWordwrap:             *wrapStringsWithoutWordwrap,
-			PreserveAngleBrackets:                  *preserveAngleBrackets,
-			SmartQuotes:                            *smartQuotes,
-			Logger:                                 logger,
-		})
-		if err != nil {
-			errorf("parser.Format for path %v with content %q returned err %v", displayPath, contentForLogging(content), err)
-			errs++
-			continue
-		}
-		log.V(2).Infof("New content for path %s: %q", displayPath, newContent)
-
-		if path == stdinPlaceholderPath {
-			fmt.Print(string(newContent))
-			continue
-		}
-		if bytes.Equal(content, newContent) {
-			log.Info("No change for path ", displayPath)
-			continue
-		}
-		if *dryRun {
-			fmt.Println(string(newContent))
-			continue
-		}
-		if err := ioutil.WriteFile(path, newContent, 0664); err != nil {
+		if err := processPath(path); err != nil {
+			if err.Error() == "path not found" || err.Error() == "parser.Format failed" {
+				errs++
+				continue
+			}
 			log.Exit(err)
 		}
 	}
