@@ -181,6 +181,51 @@ func FormatWithConfig(in []byte, c Config) ([]byte, error) {
 	return PrettyBytes(nodes, 0), nil
 }
 
+type bracketState struct {
+	insideComment            bool
+	insideString             bool
+	insideTemplate           bool
+	insideTripleQuotedString bool
+	stringDelimiter          string
+	isEscapedChar            bool
+}
+
+func (s *bracketState) processChar(c byte, i int, in []byte, allowTripleQuotedStrings bool) {
+	switch c {
+	case '#':
+		if !s.insideString {
+			s.insideComment = true
+		}
+	case '%':
+		if !s.insideComment && !s.insideString {
+			s.insideTemplate = !s.insideTemplate
+		}
+	case '"', '\'':
+		if s.insideComment {
+			return
+		}
+		delim := string(c)
+		tripleQuoted := false
+		if allowTripleQuotedStrings && i+3 <= len(in) {
+			triple := string(in[i : i+3])
+			if triple == `"""` || triple == `'''` {
+				delim = triple
+				tripleQuoted = true
+			}
+		}
+		if s.insideString {
+			if s.stringDelimiter == delim && (s.insideTripleQuotedString || !s.isEscapedChar) {
+				s.insideString = false
+				s.insideTripleQuotedString = false
+			}
+		} else {
+			s.insideString = true
+			s.insideTripleQuotedString = tripleQuoted
+			s.stringDelimiter = delim
+		}
+	}
+}
+
 // Return the byte-positions of each bracket which has the corresponding close on the
 // same line as a set.
 func sameLineBrackets(in []byte, allowTripleQuotedStrings bool) (map[int]bool, error) {
@@ -191,24 +236,20 @@ func sameLineBrackets(in []byte, allowTripleQuotedStrings bool) (map[int]bool, e
 	}
 	open := []bracket{} // Stack.
 	res := map[int]bool{}
-	insideComment := false
-	insideString := false
-	insideTemplate := false
-	insideTripleQuotedString := false
-	var stringDelimiter string
-	isEscapedChar := false
+	state := bracketState{}
 	for i, c := range in {
+		state.processChar(c, i, in, allowTripleQuotedStrings)
 		switch c {
 		case '\n':
 			line++
-			insideComment = false
+			state.insideComment = false
 		case '{', '<':
-			if insideComment || insideString || insideTemplate {
+			if state.insideComment || state.insideString || state.insideTemplate {
 				continue
 			}
 			open = append(open, bracket{index: i, line: line})
 		case '}', '>':
-			if insideComment || insideString || insideTemplate {
+			if state.insideComment || state.insideString || state.insideTemplate {
 				continue
 			}
 			if len(open) == 0 {
@@ -220,55 +261,15 @@ func sameLineBrackets(in []byte, allowTripleQuotedStrings bool) (map[int]bool, e
 			if br.line == line {
 				res[br.index] = true
 			}
-		case '#':
-			if insideString {
-				continue
-			}
-			insideComment = true
-		case '%':
-			if insideComment || insideString {
-				continue
-			}
-			if insideTemplate {
-				insideTemplate = false
-			} else {
-				insideTemplate = true
-			}
-		case '"', '\'':
-			if insideComment {
-				continue
-			}
-			delim := string(c)
-			tripleQuoted := false
-			if allowTripleQuotedStrings && i+3 <= len(in) {
-				triple := string(in[i : i+3])
-				if triple == `"""` || triple == `'''` {
-					delim = triple
-					tripleQuoted = true
-				}
-			}
-
-			if insideString {
-				if stringDelimiter == delim && (insideTripleQuotedString || !isEscapedChar) {
-					insideString = false
-					insideTripleQuotedString = false
-				}
-			} else {
-				insideString = true
-				if tripleQuoted {
-					insideTripleQuotedString = true
-				}
-				stringDelimiter = delim
-			}
+		}
+		if state.isEscapedChar {
+			state.isEscapedChar = false
+		} else if c == '\\' && state.insideString && !state.insideTripleQuotedString {
+			state.isEscapedChar = true
 		}
 
-		if isEscapedChar {
-			isEscapedChar = false
-		} else if c == '\\' && insideString && !insideTripleQuotedString {
-			isEscapedChar = true
-		}
 	}
-	if insideString {
+	if state.insideString {
 		return nil, fmt.Errorf("unterminated string literal")
 	}
 	return res, nil
