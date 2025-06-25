@@ -682,20 +682,10 @@ func (p *parser) parse(isRoot bool) (result []*ast.Node, endPos ast.Position, er
 			break
 		}
 
-		if p.consume('[') {
-			// Read Name (of proto extension).
-			nd.Name = fmt.Sprintf("[%s]", p.readExtension())
-			_ = p.consume(']') // Ignore the ']'.
-		} else {
-			// Read Name.
-			nd.Name = p.readFieldName()
-			if nd.Name == "" && !isRoot && !p.config.AllowUnnamedNodesEverywhere {
-				return nil, ast.Position{}, fmt.Errorf("Failed to find a FieldName at %s", p.errorContext())
-			}
+		if err := p.parseFieldName(nd, isRoot); err != nil {
+			return nil, ast.Position{}, err
 		}
-		if p.config.infoLevel() {
-			p.config.infof("name: %q", nd.Name)
-		}
+
 		// Skip separator.
 		preCommentsBeforeColon, _ := p.skipWhiteSpaceAndReadComments(true /* multiLine */)
 		nd.SkipColon = !p.consume(':')
@@ -703,103 +693,27 @@ func (p *parser) parse(isRoot bool) (result []*ast.Node, endPos ast.Position, er
 		preCommentsAfterColon, _ := p.skipWhiteSpaceAndReadComments(true /* multiLine */)
 
 		if p.consume('{') || p.consume('<') {
-			if p.config.SkipAllColons {
-				nd.SkipColon = true
-			}
-			nd.ChildrenSameLine = p.bracketSameLine[p.index-1]
-			nd.IsAngleBracket = p.config.PreserveAngleBrackets && p.in[p.index-1] == '<'
-			// Recursive call to parse child nodes.
-			nodes, lastPos, err := p.parse( /*isRoot=*/ false)
-			if err != nil {
+			if err := p.parseMessage(nd); err != nil {
 				return nil, ast.Position{}, err
 			}
-			nd.Children = nodes
-			nd.End = lastPos
-
-			nd.ClosingBraceComment = p.readInlineComment()
 		} else if p.consume('[') {
-			openBracketLine := p.line
-
-			// Skip separator.
-			preCommentsAfterListStart := p.readContinuousBlocksOfComments()
-
-			var preComments []string
-			preComments = append(preComments, preCommentsBeforeColon...)
-			preComments = append(preComments, preCommentsAfterColon...)
-			preComments = append(preComments, preCommentsAfterListStart...)
-
-			if p.nextInputIs('{') {
-				// Handle list of nodes.
-				nd.ChildrenAsList = true
-
-				nodes, lastPos, err := p.parse( /*isRoot=*/ true)
-				if err != nil {
-					return nil, ast.Position{}, err
-				}
-				if len(nodes) > 0 {
-					nodes[0].PreComments = preComments
-				}
-
-				nd.Children = nodes
-				nd.End = lastPos
-				nd.ClosingBraceComment = p.readInlineComment()
-				nd.ChildrenSameLine = openBracketLine == p.line
-			} else {
-				// Handle list of values.
-				nd.ValuesAsList = true // We found values in list - keep it as list.
-
-				for ld := p.getLoopDetector(); !p.consume(']') && p.index < p.length; {
-					if err := ld.iter(); err != nil {
-						return nil, ast.Position{}, err
-					}
-
-					// Read each value in the list.
-					vals, err := p.readValues()
-					if err != nil {
-						return nil, ast.Position{}, err
-					}
-					if len(vals) != 1 {
-						return nil, ast.Position{}, fmt.Errorf("multiple-string value not supported (%v). Please add comma explicitly, see http://b/162070952", vals)
-					}
-					if len(preComments) > 0 {
-						// If we read preComments before readValues(), they should go first,
-						// but avoid copy overhead if there are none.
-						vals[0].PreComments = append(preComments, vals[0].PreComments...)
-					}
-
-					// Skip separator.
-					_, _ = p.skipWhiteSpaceAndReadComments(false /* multiLine */)
-					if p.consume(',') {
-						vals[0].InlineComment = p.readInlineComment()
-					}
-
-					nd.Values = append(nd.Values, vals...)
-
-					preComments, _ = p.skipWhiteSpaceAndReadComments(true /* multiLine */)
-				}
-				nd.ChildrenSameLine = openBracketLine == p.line
-
+			if err := p.parseList(nd, preCommentsBeforeColon, preCommentsAfterColon); err != nil {
+				return nil, ast.Position{}, err
+			}
+			if nd.ValuesAsList {
 				res = append(res, nd)
-
-				// Handle comments after last line (or for empty list)
-				nd.PostValuesComments = preComments
-				nd.ClosingBraceComment = p.readInlineComment()
-
-				if err = p.consumeOptionalSeparator(); err != nil {
-					return nil, ast.Position{}, err
-				}
-
 				continue
 			}
 		} else {
 			// Rewind comments.
 			p.rollbackPosition(previousPos)
 			// Handle Values.
+			var err error
 			nd.Values, err = p.readValues()
 			if err != nil {
 				return nil, ast.Position{}, err
 			}
-			if err = p.consumeOptionalSeparator(); err != nil {
+			if err := p.consumeOptionalSeparator(); err != nil {
 				return nil, ast.Position{}, err
 			}
 		}
@@ -809,6 +723,115 @@ func (p *parser) parse(isRoot bool) (result []*ast.Node, endPos ast.Position, er
 		res = append(res, nd)
 	}
 	return res, p.position(), nil
+}
+
+func (p *parser) parseFieldName(nd *ast.Node, isRoot bool) error {
+	if p.consume('[') {
+		// Read Name (of proto extension).
+		nd.Name = fmt.Sprintf("[%s]", p.readExtension())
+		_ = p.consume(']') // Ignore the ']'.
+	} else {
+		// Read Name.
+		nd.Name = p.readFieldName()
+		if nd.Name == "" && !isRoot && !p.config.AllowUnnamedNodesEverywhere {
+			return fmt.Errorf("Failed to find a FieldName at %s", p.errorContext())
+		}
+	}
+	if p.config.infoLevel() {
+		p.config.infof("name: %q", nd.Name)
+	}
+	return nil
+}
+
+func (p *parser) parseMessage(nd *ast.Node) error {
+	if p.config.SkipAllColons {
+		nd.SkipColon = true
+	}
+	nd.ChildrenSameLine = p.bracketSameLine[p.index-1]
+	nd.IsAngleBracket = p.config.PreserveAngleBrackets && p.in[p.index-1] == '<'
+	// Recursive call to parse child nodes.
+	nodes, lastPos, err := p.parse( /*isRoot=*/ false)
+	if err != nil {
+		return err
+	}
+	nd.Children = nodes
+	nd.End = lastPos
+
+	nd.ClosingBraceComment = p.readInlineComment()
+	return nil
+}
+
+func (p *parser) parseList(nd *ast.Node, preCommentsBeforeColon, preCommentsAfterColon []string) error {
+	openBracketLine := p.line
+
+	// Skip separator.
+	preCommentsAfterListStart := p.readContinuousBlocksOfComments()
+
+	var preComments []string
+	preComments = append(preComments, preCommentsBeforeColon...)
+	preComments = append(preComments, preCommentsAfterColon...)
+	preComments = append(preComments, preCommentsAfterListStart...)
+
+	if p.nextInputIs('{') {
+		// Handle list of nodes.
+		nd.ChildrenAsList = true
+
+		nodes, lastPos, err := p.parse( /*isRoot=*/ true)
+		if err != nil {
+			return err
+		}
+		if len(nodes) > 0 {
+			nodes[0].PreComments = preComments
+		}
+
+		nd.Children = nodes
+		nd.End = lastPos
+		nd.ClosingBraceComment = p.readInlineComment()
+		nd.ChildrenSameLine = openBracketLine == p.line
+	} else {
+		// Handle list of values.
+		nd.ValuesAsList = true // We found values in list - keep it as list.
+
+		for ld := p.getLoopDetector(); !p.consume(']') && p.index < p.length; {
+			if err := ld.iter(); err != nil {
+				return err
+			}
+
+			// Read each value in the list.
+			vals, err := p.readValues()
+			if err != nil {
+				return err
+			}
+			if len(vals) != 1 {
+				return fmt.Errorf("multiple-string value not supported (%v). Please add comma explicitly, see http://b/162070952", vals)
+			}
+			if len(preComments) > 0 {
+				// If we read preComments before readValues(), they should go first,
+				// but avoid copy overhead if there are none.
+				vals[0].PreComments = append(preComments, vals[0].PreComments...)
+			}
+
+			// Skip separator.
+			_, _ = p.skipWhiteSpaceAndReadComments(false /* multiLine */)
+			if p.consume(',') {
+				vals[0].InlineComment = p.readInlineComment()
+			}
+
+			nd.Values = append(nd.Values, vals...)
+
+			preComments, _ = p.skipWhiteSpaceAndReadComments(true /* multiLine */)
+		}
+		nd.ChildrenSameLine = openBracketLine == p.line
+
+		// Handle comments after last line (or for empty list)
+		nd.PostValuesComments = preComments
+		nd.ClosingBraceComment = p.readInlineComment()
+
+		if err := p.consumeOptionalSeparator(); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (p *parser) readFieldName() string {
