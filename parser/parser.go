@@ -1182,17 +1182,24 @@ func wrapStrings(nodes []*ast.Node, depth int, c Config) error {
 		if nd.ChildrenSameLine {
 			continue
 		}
-		if c.WrapStringsAtColumn > 0 && needsWrappingAtColumn(nd, depth, c) {
-			if err := wrapLinesAtColumn(nd, depth, c); err != nil {
-				return err
-			}
-		}
-		if c.WrapStringsAfterNewlines && needsWrappingAfterNewlines(nd, c) {
-			if err := wrapLinesAfterNewlines(nd, c); err != nil {
-				return err
-			}
+		if err := wrapNodeStrings(nd, depth, c); err != nil {
+			return err
 		}
 		if err := wrapStrings(nd.Children, depth+1, c); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func wrapNodeStrings(nd *ast.Node, depth int, c Config) error {
+	if c.WrapStringsAtColumn > 0 && needsWrappingAtColumn(nd, depth, c) {
+		if err := wrapLinesAtColumn(nd, depth, c); err != nil {
+			return err
+		}
+	}
+	if c.WrapStringsAfterNewlines && needsWrappingAfterNewlines(nd, c) {
+		if err := wrapLinesAfterNewlines(nd, c); err != nil {
 			return err
 		}
 	}
