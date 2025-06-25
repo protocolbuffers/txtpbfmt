@@ -1096,6 +1096,21 @@ func (p *parser) readInlineComment() string {
 	return ""
 }
 
+func (p *parser) readStringInTemplate(i int) int {
+	stringBegin := i - 1 // Index of quote.
+	for ; i < p.length; i++ {
+		if p.in[i] == '\\' {
+			i++ // Skip escaped char.
+			continue
+		}
+		if p.in[i] == p.in[stringBegin] {
+			i++ // Skip end quote.
+			break
+		}
+	}
+	return i
+}
+
 func (p *parser) readTemplate() string {
 	if !p.nextInputIs('%') {
 		return ""
@@ -1103,18 +1118,8 @@ func (p *parser) readTemplate() string {
 	i := p.index + 1
 	for ; i < p.length; i++ {
 		if p.in[i] == '"' || p.in[i] == '\'' {
-			stringBegin := i // Index of quote.
 			i++
-			for ; i < p.length; i++ {
-				if p.in[i] == '\\' {
-					i++ // Skip escaped char.
-					continue
-				}
-				if p.in[i] == p.in[stringBegin] {
-					i++ // Skip end quote.
-					break
-				}
-			}
+			i = p.readStringInTemplate(i)
 		}
 		if i < p.length && p.in[i] == '%' {
 			i++
