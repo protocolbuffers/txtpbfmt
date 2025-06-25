@@ -1648,17 +1648,7 @@ func (f formatter) writeNode(nd *ast.Node, depth int, isSameLine, asListItems bo
 	if !isSameLine {
 		indent = strings.Repeat(indentSpaces, depth)
 	}
-	for _, comment := range nd.PreComments {
-		if len(comment) == 0 {
-			if !(depth == 0 && index == 0) {
-				f.WriteString("\n")
-			}
-			continue
-		}
-		f.WriteString(indent)
-		f.WriteString(comment)
-		f.WriteString("\n")
-	}
+	f.writePreComments(nd, indent, depth, index)
 
 	if nd.IsCommentOnly() {
 		// The comments have been printed already, no more work to do.
@@ -1683,6 +1673,20 @@ func (f formatter) writeNode(nd *ast.Node, depth int, isSameLine, asListItems bo
 	}
 
 	f.writeNodeClosingBraceComment(nd)
+}
+
+func (f formatter) writePreComments(nd *ast.Node, indent string, depth int, index int) {
+	for _, comment := range nd.PreComments {
+		if len(comment) == 0 {
+			if !(depth == 0 && index == 0) {
+				f.WriteString("\n")
+			}
+			continue
+		}
+		f.WriteString(indent)
+		f.WriteString(comment)
+		f.WriteString("\n")
+	}
 }
 
 func (f formatter) writeNodes(nodes []*ast.Node, depth int, isSameLine, asListItems bool) {
