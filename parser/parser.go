@@ -1229,6 +1229,52 @@ func needsWrappingAtColumn(nd *ast.Node, depth int, c Config) bool {
 	return false
 }
 
+func wrapLinesWithoutWordwrap(str string, maxLength int) []string {
+	// https://protobuf.dev/reference/protobuf/textformat-spec/#string.
+	// String literals can contain octal, hex, unicode, and C-style escape
+	// sequences: \a \b \f \n \r \t \v \? \' \"\ ? \\
+	re := regexp.MustCompile(`\\[abfnrtv?\\'"]` +
+		`|\\[0-7]{1,3}` +
+		`|\\x[0-9a-fA-F]{1,2}` +
+		`|\\u[0-9a-fA-F]{4}` +
+		`|\\U000[0-9a-fA-F]{5}` +
+		`|\\U0010[0-9a-fA-F]{4}` +
+		`|.`)
+	var lines []string
+	var line strings.Builder
+	for _, t := range re.FindAllString(str, -1) {
+		if line.Len()+len(t) > maxLength {
+			lines = append(lines, line.String())
+			line.Reset()
+		}
+		line.WriteString(t)
+	}
+	lines = append(lines, line.String())
+	return lines
+}
+
+func adjustLineLength(nd *ast.Node, v *ast.Value, line string, maxLength int, i int, numLines int) {
+	var lineLength = len(line)
+	if v.InlineComment != "" {
+		lineLength += len(indentSpaces) + len(v.InlineComment)
+	}
+	// field name and field value are inlined for single strings, adjust for that.
+	if i == 0 && numLines == 1 {
+		lineLength += len(nd.Name)
+	}
+	if lineLength > maxLength {
+		// If there's an inline comment, promote it to a pre-comment which will
+		// emit a newline.
+		if v.InlineComment != "" {
+			v.PreComments = append(v.PreComments, v.InlineComment)
+			v.InlineComment = ""
+		} else if i == 0 && len(v.PreComments) == 0 {
+			// It's too long and we don't have any comments.
+			nd.PutSingleValueOnNextLine = true
+		}
+	}
+}
+
 // If the Values of this Node constitute a string, and if Config.WrapStringsAtColumn > 0, then wrap
 // the string so each line is within the specified columns. Wraps only the current Node (does not
 // recurse into Children).
@@ -1246,25 +1292,7 @@ func wrapLinesAtColumn(nd *ast.Node, depth int, c Config) error {
 
 	var lines []string
 	if c.WrapStringsWithoutWordwrap {
-		// https://protobuf.dev/reference/protobuf/textformat-spec/#string.
-		// String literals can contain octal, hex, unicode, and C-style escape
-		// sequences: \a \b \f \n \r \t \v \? \' \"\ ? \\
-		re := regexp.MustCompile(`\\[abfnrtv?\\'"]` +
-			`|\\[0-7]{1,3}` +
-			`|\\x[0-9a-fA-F]{1,2}` +
-			`|\\u[0-9a-fA-F]{4}` +
-			`|\\U000[0-9a-fA-F]{5}` +
-			`|\\U0010[0-9a-fA-F]{4}` +
-			`|.`)
-		var line strings.Builder
-		for _, t := range re.FindAllString(str, -1) {
-			if line.Len()+len(t) > maxLength {
-				lines = append(lines, line.String())
-				line.Reset()
-			}
-			line.WriteString(t)
-		}
-		lines = append(lines, line.String())
+		lines = wrapLinesWithoutWordwrap(str, maxLength)
 	} else {
 		// Remove one from the max length since a trailing space may be added below.
 		wrappedStr := wordwrap.WrapString(str, uint(maxLength)-1)
@@ -1290,25 +1318,7 @@ func wrapLinesAtColumn(nd *ast.Node, depth int, c Config) error {
 		}
 
 		if c.WrapStringsWithoutWordwrap {
-			var lineLength = len(line)
-			if v.InlineComment != "" {
-				lineLength += len(indentSpaces) + len(v.InlineComment)
-			}
-			// field name and field value are inlined for single strings, adjust for that.
-			if i == 0 && len(lines) == 1 {
-				lineLength += len(nd.Name)
-			}
-			if lineLength > maxLength {
-				// If there's an inline comment, promote it to a pre-comment which will
-				// emit a newline.
-				if v.InlineComment != "" {
-					v.PreComments = append(v.PreComments, v.InlineComment)
-					v.InlineComment = ""
-				} else if i == 0 && len(v.PreComments) == 0 {
-					// It's too long and we don't have any comments.
-					nd.PutSingleValueOnNextLine = true
-				}
-			}
+			adjustLineLength(nd, v, line, maxLength, i, len(lines))
 		}
 
 		v.Value = fmt.Sprintf(`%c%s%c`, quote, line, quote)
