@@ -104,11 +104,7 @@ func unquoteC(s string, quote rune) (string, error) {
 		}
 		s = s[n:]
 		if r != '\\' {
-			if r < utf8.RuneSelf {
-				buf = append(buf, byte(r))
-			} else {
-				buf = append(buf, string(r)...)
-			}
+			buf = appendRune(buf, r)
 			continue
 		}
 
@@ -120,6 +116,13 @@ func unquoteC(s string, quote rune) (string, error) {
 		s = tail
 	}
 	return string(buf), nil
+}
+
+func appendRune(buf []byte, r rune) []byte {
+	if r < utf8.RuneSelf {
+		return append(buf, byte(r))
+	}
+	return append(buf, string(r)...)
 }
 
 func unescape(s string) (ch string, tail string, err error) {
