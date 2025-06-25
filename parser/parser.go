@@ -1206,30 +1206,29 @@ func wrapNodeStrings(nd *ast.Node, depth int, c Config) error {
 	return nil
 }
 
+func shouldWrapString(v *ast.Value, maxLength int, c Config) bool {
+	if len(v.Value) >= 3 && (strings.HasPrefix(v.Value, `'''`) || strings.HasPrefix(v.Value, `"""`)) {
+		// Don't wrap triple-quoted strings
+		return false
+	}
+	if len(v.Value) > 0 && v.Value[0] != '\'' && v.Value[0] != '"' {
+		// Only wrap strings
+		return false
+	}
+	if !c.WrapHTMLStrings && tagRegex.Match([]byte(v.Value)) {
+		return false
+	}
+	return len(v.Value) > maxLength || c.WrapStringsWithoutWordwrap
+}
+
 func needsWrappingAtColumn(nd *ast.Node, depth int, c Config) bool {
 	// Even at depth 0 we have a 2-space indent when the wrapped string is rendered on the line below
 	// the field name.
 	const lengthBuffer = 2
 	maxLength := c.WrapStringsAtColumn - lengthBuffer - (depth * len(indentSpaces))
 
-	if !c.WrapHTMLStrings {
-		for _, v := range nd.Values {
-			if tagRegex.Match([]byte(v.Value)) {
-				return false
-			}
-		}
-	}
-
 	for _, v := range nd.Values {
-		if len(v.Value) >= 3 && (strings.HasPrefix(v.Value, `'''`) || strings.HasPrefix(v.Value, `"""`)) {
-			// Don't wrap triple-quoted strings
-			return false
-		}
-		if len(v.Value) > 0 && v.Value[0] != '\'' && v.Value[0] != '"' {
-			// Only wrap strings
-			return false
-		}
-		if len(v.Value) > maxLength || c.WrapStringsWithoutWordwrap {
+		if shouldWrapString(v, maxLength, c) {
 			return true
 		}
 	}
