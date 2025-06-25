@@ -1639,12 +1639,53 @@ type formatter struct {
 	stringWriter
 }
 
-func (f formatter) writeNodes(nodes []*ast.Node, depth int, isSameLine, asListItems bool) {
+func (f formatter) writeNode(nd *ast.Node, depth int, isSameLine, asListItems bool, index, lastNonCommentIndex int) {
+	if len(nd.Raw) > 0 {
+		f.WriteString(nd.Raw)
+		return
+	}
 	indent := " "
 	if !isSameLine {
 		indent = strings.Repeat(indentSpaces, depth)
 	}
+	for _, comment := range nd.PreComments {
+		if len(comment) == 0 {
+			if !(depth == 0 && index == 0) {
+				f.WriteString("\n")
+			}
+			continue
+		}
+		f.WriteString(indent)
+		f.WriteString(comment)
+		f.WriteString("\n")
+	}
 
+	if nd.IsCommentOnly() {
+		// The comments have been printed already, no more work to do.
+		return
+	}
+	f.WriteString(indent)
+	// Node name may be empty in alternative-style textproto files, because they
+	// contain a sequence of proto messages of the same type:
+	//   { name: "first_msg" }
+	//   { name: "second_msg" }
+	// In all other cases, nd.Name is not empty and should be printed.
+	if nd.Name != "" {
+		f.writeNodeName(nd, indent)
+	}
+
+	f.writeNodeValues(nd, indent)
+
+	f.writeNodeChildren(nd, depth, isSameLine)
+
+	if asListItems && index < lastNonCommentIndex {
+		f.WriteString(",")
+	}
+
+	f.writeNodeClosingBraceComment(nd)
+}
+
+func (f formatter) writeNodes(nodes []*ast.Node, depth int, isSameLine, asListItems bool) {
 	lastNonCommentIndex := 0
 	if asListItems {
 		for i := len(nodes) - 1; i >= 0; i-- {
@@ -1656,77 +1697,54 @@ func (f formatter) writeNodes(nodes []*ast.Node, depth int, isSameLine, asListIt
 	}
 
 	for index, nd := range nodes {
-		if len(nd.Raw) > 0 {
-			f.WriteString(nd.Raw)
-			continue
-		}
-		for _, comment := range nd.PreComments {
-			if len(comment) == 0 {
-				if !(depth == 0 && index == 0) {
-					f.WriteString("\n")
-				}
-				continue
-			}
-			f.WriteString(indent)
-			f.WriteString(comment)
+		f.writeNode(nd, depth, isSameLine, asListItems, index, lastNonCommentIndex)
+		if !isSameLine && len(nd.Raw) == 0 && !nd.IsCommentOnly() {
 			f.WriteString("\n")
 		}
+	}
+}
 
-		if nd.IsCommentOnly() {
-			// The comments have been printed already, no more work to do.
-			continue
-		}
-		f.WriteString(indent)
-		// Node name may be empty in alternative-style textproto files, because they
-		// contain a sequence of proto messages of the same type:
-		//   { name: "first_msg" }
-		//   { name: "second_msg" }
-		// In all other cases, nd.Name is not empty and should be printed.
-		if nd.Name != "" {
-			f.WriteString(nd.Name)
-			if !nd.SkipColon {
-				f.WriteString(":")
-			}
+func (f formatter) writeNodeName(nd *ast.Node, indent string) {
+	f.WriteString(nd.Name)
+	if !nd.SkipColon {
+		f.WriteString(":")
+	}
 
-			// The space after the name is required for one-liners and message fields:
-			//   title: "there was a space here"
-			//   metadata: { ... }
-			// In other cases, there is a newline right after the colon, so no space required.
-			if nd.Children != nil || (len(nd.Values) == 1 && len(nd.Values[0].PreComments) == 0) || nd.ValuesAsList {
-				if nd.PutSingleValueOnNextLine {
-					f.WriteString("\n" + indent + indentSpaces)
-				} else {
-					f.WriteString(" ")
-				}
-			}
+	// The space after the name is required for one-liners and message fields:
+	//   title: "there was a space here"
+	//   metadata: { ... }
+	// In other cases, there is a newline right after the colon, so no space required.
+	if nd.Children != nil || (len(nd.Values) == 1 && len(nd.Values[0].PreComments) == 0) || nd.ValuesAsList {
+		if nd.PutSingleValueOnNextLine {
+			f.WriteString("\n" + indent + indentSpaces)
+		} else {
+			f.WriteString(" ")
 		}
+	}
+}
 
-		if nd.ValuesAsList { // For ValuesAsList option we will preserve even empty list  `field: []`
-			f.writeValuesAsList(nd, nd.Values, indent+indentSpaces)
-		} else if len(nd.Values) > 0 {
-			f.writeValues(nd, nd.Values, indent+indentSpaces)
-		}
+func (f formatter) writeNodeValues(nd *ast.Node, indent string) {
+	if nd.ValuesAsList { // For ValuesAsList option we will preserve even empty list  `field: []`
+		f.writeValuesAsList(nd, nd.Values, indent+indentSpaces)
+	} else if len(nd.Values) > 0 {
+		f.writeValues(nd, nd.Values, indent+indentSpaces)
+	}
+}
 
-		if nd.Children != nil { // Also for 0 Children.
-			if nd.ChildrenAsList {
-				f.writeChildrenAsListItems(nd.Children, depth+1, isSameLine || nd.ChildrenSameLine)
-			} else {
-				f.writeChildren(nd.Children, depth+1, isSameLine || nd.ChildrenSameLine, nd.IsAngleBracket)
-			}
+func (f formatter) writeNodeChildren(nd *ast.Node, depth int, isSameLine bool) {
+	if nd.Children != nil { // Also for 0 Children.
+		if nd.ChildrenAsList {
+			f.writeChildrenAsListItems(nd.Children, depth+1, isSameLine || nd.ChildrenSameLine)
+		} else {
+			f.writeChildren(nd.Children, depth+1, isSameLine || nd.ChildrenSameLine, nd.IsAngleBracket)
 		}
+	}
+}
 
-		if asListItems && index < lastNonCommentIndex {
-			f.WriteString(",")
-		}
-
-		if (nd.Children != nil || nd.ValuesAsList) && len(nd.ClosingBraceComment) > 0 {
-			f.WriteString(indentSpaces)
-			f.WriteString(nd.ClosingBraceComment)
-		}
-
-		if !isSameLine {
-			f.WriteString("\n")
-		}
+func (f formatter) writeNodeClosingBraceComment(nd *ast.Node) {
+	if (nd.Children != nil || nd.ValuesAsList) && len(nd.ClosingBraceComment) > 0 {
+		f.WriteString(indentSpaces)
+		f.WriteString(nd.ClosingBraceComment)
 	}
 }
 
