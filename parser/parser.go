@@ -1008,11 +1008,9 @@ func (p *parser) readValues() ([]*ast.Value, error) {
 		values = append(values, p.populateValue(p.readTemplate(), nil))
 		previousPos = p.position()
 	}
-	if p.config.AllowTripleQuotedStrings {
-		v, err := p.readTripleQuotedString()
-		if err != nil {
-			return nil, err
-		}
+	if v, err := p.readTripleQuotedStringValue(); err != nil {
+		return nil, err
+	} else {
 		if v != nil {
 			values = append(values, v)
 			previousPos = p.position()
@@ -1020,36 +1018,13 @@ func (p *parser) readValues() ([]*ast.Value, error) {
 	}
 	for p.consume('"') || p.consume('\'') {
 		// Handle string value.
-		stringBegin := p.index - 1 // Index of the quote.
-		i := p.index
-		for ; i < p.length; i++ {
-			if p.in[i] == '\\' {
-				i++ // Skip escaped char.
-				continue
-			}
-			if p.in[i] == '\n' {
-				p.index = i
-				return nil, fmt.Errorf("found literal (unescaped) new line in string at %s", p.errorContext())
-			}
-			if p.in[i] == p.in[stringBegin] {
-				var vl string
-				if p.config.SmartQuotes {
-					vl = smartQuotes(p.advance(i))
-				} else {
-					vl = fixQuotes(p.advance(i))
-				}
-				_ = p.advance(i + 1) // Skip the quote.
-				values = append(values, p.populateValue(vl, preComments))
-
-				previousPos = p.position()
-				preComments, _ = p.skipWhiteSpaceAndReadComments(true /* multiLine */)
-				break
-			}
+		v, err := p.readSingleQuotedStringValue(preComments)
+		if err != nil {
+			return nil, err
 		}
-		if i == p.length {
-			p.index = i
-			return nil, fmt.Errorf("unfinished string at %s", p.errorContext())
-		}
+		values = append(values, v)
+		previousPos = p.position()
+		preComments, _ = p.skipWhiteSpaceAndReadComments(true /* multiLine */)
 	}
 	if previousPos != (ast.Position{}) {
 		// Rewind comments.
@@ -1057,18 +1032,59 @@ func (p *parser) readValues() ([]*ast.Value, error) {
 	} else {
 		i := p.index
 		// Handle other values.
-		for ; i < p.length; i++ {
-			if p.isValueSep(i) {
-				break
-			}
-		}
-		vl := p.advance(i)
-		values = append(values, p.populateValue(vl, preComments))
+		values = append(values, p.readOtherValue(i, preComments))
 	}
 	if p.config.infoLevel() {
 		p.config.infof("values: %v", values)
 	}
 	return values, nil
+}
+
+func (p *parser) readTripleQuotedStringValue() (*ast.Value, error) {
+	if !p.config.AllowTripleQuotedStrings {
+		return nil, nil
+	}
+	return p.readTripleQuotedString()
+}
+
+func (p *parser) readSingleQuotedStringValue(preComments []string) (*ast.Value, error) {
+	stringBegin := p.index - 1 // Index of the quote.
+	i := p.index
+	for ; i < p.length; i++ {
+		if p.in[i] == '\\' {
+			i++ // Skip escaped char.
+			continue
+		}
+		if p.in[i] == '\n' {
+			p.index = i
+			return nil, fmt.Errorf("found literal (unescaped) new line in string at %s", p.errorContext())
+		}
+		if p.in[i] == p.in[stringBegin] {
+			var vl string
+			if p.config.SmartQuotes {
+				vl = smartQuotes(p.advance(i))
+			} else {
+				vl = fixQuotes(p.advance(i))
+			}
+			_ = p.advance(i + 1) // Skip the quote.
+			return p.populateValue(vl, preComments), nil
+		}
+	}
+	if i == p.length {
+		p.index = i
+		return nil, fmt.Errorf("unfinished string at %s", p.errorContext())
+	}
+	return nil, nil
+}
+
+func (p *parser) readOtherValue(i int, preComments []string) *ast.Value {
+	for ; i < p.length; i++ {
+		if p.isValueSep(i) {
+			break
+		}
+	}
+	vl := p.advance(i)
+	return p.populateValue(vl, preComments)
 }
 
 func (p *parser) readTripleQuotedString() (*ast.Value, error) {
