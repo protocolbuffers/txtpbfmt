@@ -1784,19 +1784,23 @@ func (f formatter) writeValues(nd *ast.Node, vals []*ast.Value, indent string) {
 	}
 }
 
-func (f formatter) writeValuesAsList(nd *ast.Node, vals []*ast.Value, indent string) {
-	// Checks if it's possible to put whole list in a single line.
-	sameLine := nd.ChildrenSameLine && len(nd.PostValuesComments) == 0
-	if sameLine {
-		// Parser found all children on a same line, but we need to check again.
-		// It's possible that AST was modified after parsing.
-		for _, val := range vals {
-			if len(val.PreComments) > 0 || len(vals[0].InlineComment) > 0 {
-				sameLine = false
-				break
-			}
+func (f formatter) canWriteValuesAsListOnSameLine(nd *ast.Node, vals []*ast.Value) bool {
+	if !nd.ChildrenSameLine || len(nd.PostValuesComments) > 0 {
+		return false
+	}
+	// Parser found all children on a same line, but we need to check again.
+	// It's possible that AST was modified after parsing.
+	for _, val := range vals {
+		if len(val.PreComments) > 0 || len(val.InlineComment) > 0 {
+			return false
 		}
 	}
+	return true
+}
+
+func (f formatter) writeValuesAsList(nd *ast.Node, vals []*ast.Value, indent string) {
+	// Checks if it's possible to put whole list in a single line.
+	sameLine := f.canWriteValuesAsListOnSameLine(nd, vals)
 	sep := ""
 	if !sameLine {
 		sep = "\n" + indent
