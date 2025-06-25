@@ -849,6 +849,21 @@ func (p *parser) readContinuousBlocksOfComments() []string {
 	return preComments
 }
 
+func (p *parser) consumeWhitespace() (int, error) {
+	start := p.index
+	for p.index < p.length && p.isBlankSep(p.index) {
+		if p.consume('\n') || (p.consume('\r') && p.consume('\n')) {
+			// Include up to one blank line before the 'off' directive.
+			start = p.index - 1
+		} else if p.consume(' ') || p.consume('\t') {
+			// Do nothing. Side-effect is to advance p.index.
+		} else {
+			return 0, fmt.Errorf("unhandled isBlankSep at %s", p.errorContext())
+		}
+	}
+	return start, nil
+}
+
 // Returns the exact text within the block flanked by "# txtpbfmt: off" and "# txtpbfmt: on".
 // The 'off' directive must be on its own line, and it cannot be preceded by a comment line. Any
 // preceding whitespace on this line and up to one blank line will be retained.
@@ -858,20 +873,10 @@ func (p *parser) readContinuousBlocksOfComments() []string {
 // within this block, and as parsing errors will be ignored, please exercise caution.
 func (p *parser) readFormatterDisabledBlock() (string, error) {
 	previousPos := p.position()
-	start := p.index
-	for p.index < p.length && p.isBlankSep(p.index) {
-		if p.consume('\n') || (p.consume('\r') && p.consume('\n')) {
-			// Include up to one blank line before the 'off' directive.
-			start = p.index - 1
-		} else if p.consume(' ') {
-			// Do nothing. Side-effect is to advance p.index.
-		} else if p.consume('\t') {
-			// Do nothing. Side-effect is to advance p.index.
-		} else {
-			return "", fmt.Errorf("unhandled isBlankSep at %s", p.errorContext())
-		}
+	start, err := p.consumeWhitespace()
+	if err != nil {
+		return "", err
 	}
-	offStart := p.position()
 	if !p.consumeString("# txtpbfmt: off") {
 		// Directive not found. Rollback to start.
 		p.rollbackPosition(previousPos)
@@ -891,7 +896,7 @@ func (p *parser) readFormatterDisabledBlock() (string, error) {
 		}
 	}
 	// We reached the end of the file without finding the 'on' directive.
-	p.rollbackPosition(offStart)
+	p.rollbackPosition(previousPos)
 	return "", fmt.Errorf("unterminated txtpbfmt off at %s", p.errorContext())
 }
 
