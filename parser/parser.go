@@ -234,7 +234,7 @@ func sameLineBrackets(in []byte, allowTripleQuotedStrings bool) (map[int]bool, e
 		index int
 		line  int
 	}
-	open := []bracket{} // Stack.
+	var open []bracket // Stack.
 	res := map[int]bool{}
 	state := bracketState{}
 	for i, c := range in {
@@ -276,7 +276,7 @@ func sameLineBrackets(in []byte, allowTripleQuotedStrings bool) (map[int]bool, e
 }
 
 func removeDeleted(nodes []*ast.Node) []*ast.Node {
-	res := []*ast.Node{}
+	var res []*ast.Node
 	// When removing a node which has an empty line before it, we should keep
 	// the empty line before the next non-removed node to maintain the visual separation.
 	// Consider the following:
@@ -582,7 +582,8 @@ func (p *parser) consumeOptionalSeparator() error {
 // endPos is the position of the first character on the first line
 // after parsed nodes: that's the position to append more children.
 func (p *parser) parse(isRoot bool) (result []*ast.Node, endPos ast.Position, err error) {
-	res := []*ast.Node{}
+	var res []*ast.Node
+	res = []*ast.Node{} // empty children is different from nil children
 	for ld := p.getLoopDetector(); p.index < p.length; {
 		if err := ld.iter(); err != nil {
 			return nil, ast.Position{}, err
@@ -1305,7 +1306,7 @@ func wrapLinesWithoutWordwrap(str string, maxLength int) []string {
 }
 
 func adjustLineLength(nd *ast.Node, v *ast.Value, line string, maxLength int, i int, numLines int) {
-	var lineLength = len(line)
+	lineLength := len(line)
 	if v.InlineComment != "" {
 		lineLength += len(indentSpaces) + len(v.InlineComment)
 	}

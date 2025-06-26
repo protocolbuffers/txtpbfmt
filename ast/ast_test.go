@@ -49,12 +49,12 @@ func TestChainNodeLess(t *testing.T) {
 	}}
 	// Map strings into Node names, sort Nodes, map Node names into strings, return sorted names.
 	sortNames := func(names []string, less ast.NodeLess) []string {
-		ns := []*ast.Node{}
+		var ns []*ast.Node
 		for _, n := range names {
 			ns = append(ns, &ast.Node{Name: n})
 		}
 		ast.SortNodes(nil /* parent */, ns, less)
-		rs := []string{}
+		var rs []string
 		for _, n := range ns {
 			rs = append(rs, n.Name)
 		}
@@ -109,12 +109,12 @@ func TestChainNodeLessReverse(t *testing.T) {
 	}}
 	// Map strings into Node names, sort Nodes, map Node names into strings, return reverse sorted names.
 	sortNames := func(names []string, less ast.NodeLess) []string {
-		ns := []*ast.Node{}
+		var ns []*ast.Node
 		for _, n := range names {
 			ns = append(ns, &ast.Node{Name: n})
 		}
 		ast.SortNodes(nil /* parent */, ns, less, ast.ReverseOrdering(true))
-		rs := []string{}
+		var rs []string
 		for _, n := range ns {
 			rs = append(rs, n.Name)
 		}

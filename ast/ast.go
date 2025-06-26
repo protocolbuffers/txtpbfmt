@@ -387,7 +387,7 @@ func GetFromPath(nodes []*Node, path []string) []*Node {
 	if len(path) == 0 {
 		return nil
 	}
-	res := []*Node{}
+	var res []*Node
 	for _, node := range nodes {
 		if node.Name == path[0] {
 			if len(path) == 1 {

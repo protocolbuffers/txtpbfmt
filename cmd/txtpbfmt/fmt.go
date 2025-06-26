@@ -44,7 +44,7 @@ func read(path string) ([]byte, error) {
 	return os.ReadFile(path)
 }
 
-func errorf(format string, args ...interface{}) {
+func errorf(format string, args ...any) {
 	fmt.Fprintf(os.Stderr, format+"\n", args...)
 }
 
@@ -72,7 +72,8 @@ func processPath(path string) error {
 	if os.IsNotExist(err) {
 		log.Error("Ignoring path: ", err)
 		return fmt.Errorf("path not found")
-	} else if err != nil {
+	}
+	if err != nil {
 		return err
 	}
 
