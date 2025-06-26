@@ -88,6 +88,62 @@ func TestErrorHandling(t *testing.T) {
 			in:      "`foo`",
 			wantErr: "invalid quote character `",
 		},
+		{
+			in:      `"foo\x"`,
+			wantErr: `\x requires 2 following digits`,
+		},
+		{
+			in:      `"foo\xH"`,
+			wantErr: `\x requires 2 following digits`,
+		},
+		{
+			in:      `"foo\xHH"`,
+			wantErr: `\xHH contains non-hexadecimal digits`,
+		},
+		{
+			in:      `"foo\u"`,
+			wantErr: `\u requires 4 following digits`,
+		},
+		{
+			in:      `"foo\uH"`,
+			wantErr: `\u requires 4 following digits`,
+		},
+		{
+			in:      `"foo\uHHHH"`,
+			wantErr: `\uHHHH contains non-hexadecimal digits`,
+		},
+		{
+			in:      `"foo\U"`,
+			wantErr: `\U requires 8 following digits`,
+		},
+		{
+			in:      `"foo\UH"`,
+			wantErr: `\U requires 8 following digits`,
+		},
+		{
+			in:      `"foo\UHHHHHHHH"`,
+			wantErr: `\UHHHHHHHH contains non-hexadecimal digits`,
+		},
+		{
+			in:      `"foo\UFFFFFFFF"`,
+			wantErr: `\UFFFFFFFF is not a valid Unicode code point`,
+		},
+		{
+			in:      `"foo\0"`,
+			wantErr: `\0 requires 2 following digits`,
+		},
+		{
+			in:      `"foo\0H"`,
+			wantErr: `\0 requires 2 following digits`,
+		},
+		{
+			in:      `"foo\0HH"`,
+			wantErr: `\0HH contains non-octal digits`,
+		},
+		{
+			in:      `"foo\y"`,
+			wantErr: `unknown escape \y`,
+		},
 	}
 
 	for _, input := range inputs {
@@ -97,10 +153,55 @@ func TestErrorHandling(t *testing.T) {
 		if err == nil || !strings.Contains(err.Error(), input.wantErr) {
 			t.Errorf("Unquote(%s) got %v, want err to contain %q", input.in, err, input.wantErr)
 		}
+	}
+}
 
-		_, _, err = Raw(node)
+func TestErrorHandlingRaw(t *testing.T) {
+	inputs := []struct {
+		in      string
+		wantErr string
+	}{
+		{
+			in:      `"value`,
+			wantErr: "unmatched quote",
+		},
+		{
+			in:      `"`,
+			wantErr: "not a quoted string",
+		},
+		{
+			in:      "`foo`",
+			wantErr: "invalid quote character `",
+		},
+	}
+
+	for _, input := range inputs {
+		node := &ast.Node{Name: "name", Values: []*ast.Value{{Value: input.in}}}
+
+		_, _, err := Raw(node)
 		if err == nil || !strings.Contains(err.Error(), input.wantErr) {
 			t.Errorf("Raw(%s) got %v, want err to contain %q", input.in, err, input.wantErr)
+		}
+	}
+}
+
+func TestErrorHandlingMisc(t *testing.T) {
+	inputs := []struct {
+		in      string
+		wantErr string
+	}{
+		{
+			in:      `"value`,
+			wantErr: "unmatched quote",
+		},
+	}
+
+	for _, input := range inputs {
+		node := &ast.Node{Name: "name", Values: []*ast.Value{{Value: input.in}}}
+
+		_, _, err := Unquote(node)
+		if err == nil || !strings.Contains(err.Error(), input.wantErr) {
+			t.Errorf("Unquote(%s) got %v, want err to contain %q", input.in, err, input.wantErr)
 		}
 	}
 }
