@@ -277,6 +277,7 @@ func sameLineBrackets(in []byte, allowTripleQuotedStrings bool) (map[int]bool, e
 
 func removeDeleted(nodes []*ast.Node) []*ast.Node {
 	var res []*ast.Node
+	res = []*ast.Node{} // empty children is different from nil children
 	// When removing a node which has an empty line before it, we should keep
 	// the empty line before the next non-removed node to maintain the visual separation.
 	// Consider the following:
