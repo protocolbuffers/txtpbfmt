@@ -2764,6 +2764,20 @@ s:
 		out: `s: "one two three <four>"
 `,
 	}, {
+		name: "WrapStringsAtColumn_doNoWrapHtmlRealistic",
+		config: Config{
+			WrapStringsAtColumn: 40,
+		},
+		in: `text:
+  "The two lines below should not wrap since they contains HTML tags "
+  "<a href=\"https://support.example.com/project/a/pageone/pagetwo/pagethree?hl=1234\">"
+  "some' text</a>."`,
+		out: `text:
+  "The two lines below should not wrap since they contains HTML tags "
+  "<a href=\"https://support.example.com/project/a/pageone/pagetwo/pagethree?hl=1234\">"
+  "some' text</a>."
+`,
+	}, {
 		name: "WrapStringsAtColumn_metaComment",
 		in: `# txtpbfmt: wrap_strings_at_column=15
 # txtpbfmt: wrap_html_strings

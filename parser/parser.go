@@ -1262,10 +1262,18 @@ func shouldWrapString(v *ast.Value, maxLength int, c Config) bool {
 		// Only wrap strings
 		return false
 	}
-	if !c.WrapHTMLStrings && tagRegex.Match([]byte(v.Value)) {
-		return false
-	}
 	return len(v.Value) > maxLength || c.WrapStringsWithoutWordwrap
+}
+
+func shouldNotWrapString(nd *ast.Node, c Config) bool {
+	if !c.WrapHTMLStrings {
+		for _, v := range nd.Values {
+			if tagRegex.Match([]byte(v.Value)) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func needsWrappingAtColumn(nd *ast.Node, depth int, c Config) bool {
@@ -1273,6 +1281,10 @@ func needsWrappingAtColumn(nd *ast.Node, depth int, c Config) bool {
 	// the field name.
 	const lengthBuffer = 2
 	maxLength := c.WrapStringsAtColumn - lengthBuffer - (depth * len(indentSpaces))
+
+	if shouldNotWrapString(nd, c) {
+		return false
+	}
 
 	for _, v := range nd.Values {
 		if shouldWrapString(v, maxLength, c) {
