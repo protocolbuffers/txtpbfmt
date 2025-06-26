@@ -6,7 +6,7 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"os"
 	"strings"
 
@@ -39,9 +39,9 @@ const stdinPlaceholderPath = "<stdin>"
 
 func read(path string) ([]byte, error) {
 	if path == stdinPlaceholderPath {
-		return ioutil.ReadAll(bufio.NewReader(os.Stdin))
+		return io.ReadAll(bufio.NewReader(os.Stdin))
 	}
-	return ioutil.ReadFile(path)
+	return os.ReadFile(path)
 }
 
 func errorf(format string, args ...interface{}) {
@@ -119,7 +119,7 @@ func write(path string, content, newContent []byte) error {
 		fmt.Println(string(newContent))
 		return nil
 	}
-	if err := ioutil.WriteFile(path, newContent, 0664); err != nil {
+	if err := os.WriteFile(path, newContent, 0664); err != nil {
 		return err
 	}
 	return nil
