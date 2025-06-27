@@ -13,6 +13,7 @@ import (
 	"flag"
 	// Google internal base/go package, commented out by copybara
 	log "github.com/golang/glog"
+	"github.com/protocolbuffers/txtpbfmt/config"
 	"github.com/protocolbuffers/txtpbfmt/logger"
 	"github.com/protocolbuffers/txtpbfmt/parser"
 )
@@ -83,7 +84,7 @@ func processPath(path string) error {
 	if l := log.V(2); l {
 		logger = l
 	}
-	newContent, err := parser.FormatWithConfig(content, parser.Config{
+	newContent, err := parser.FormatWithConfig(content, config.Config{
 		ExpandAllChildren:                      *expandAllChildren,
 		SkipAllColons:                          *skipAllColons,
 		SortFieldsByFieldName:                  *sortFieldsByFieldName,
