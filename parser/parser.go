@@ -9,6 +9,7 @@ import (
 	"github.com/protocolbuffers/txtpbfmt/ast"
 	"github.com/protocolbuffers/txtpbfmt/config"
 	"github.com/protocolbuffers/txtpbfmt/impl"
+	"github.com/protocolbuffers/txtpbfmt/printer"
 	"github.com/protocolbuffers/txtpbfmt/sort"
 )
 
@@ -26,13 +27,13 @@ type UnsortedFieldsError = sort.UnsortedFieldsError
 
 // Format formats a text proto file preserving comments.
 func Format(in []byte) ([]byte, error) {
-	return impl.Format(in)
+	return printer.Format(in)
 }
 
 // FormatWithConfig functions similar to format, but allows the user to pass in
 // additional configuration options.
 func FormatWithConfig(in []byte, c config.Config) ([]byte, error) {
-	return impl.FormatWithConfig(in, c)
+	return printer.FormatWithConfig(in, c)
 }
 
 // Parse returns a tree representation of a textproto file.
@@ -50,15 +51,15 @@ func ParseWithConfig(in []byte, c config.Config) ([]*ast.Node, error) {
 // consumption by humans when debugging (e.g. in test failures). No guarantees
 // are made about the specific output.
 func DebugFormat(nodes []*ast.Node, depth int) string {
-	return impl.DebugFormat(nodes, depth)
+	return printer.Debug(nodes, depth)
 }
 
 // Pretty formats the nodes at the given indentation depth (0 = top-level).
 func Pretty(nodes []*ast.Node, depth int) string {
-	return impl.Pretty(nodes, depth)
+	return string(printer.FormatNodesWithDepth(nodes, depth))
 }
 
 // PrettyBytes returns formatted nodes at the given indentation depth (0 = top-level) as bytes.
 func PrettyBytes(nodes []*ast.Node, depth int) []byte {
-	return impl.PrettyBytes(nodes, depth)
+	return printer.FormatNodesWithDepth(nodes, depth)
 }
