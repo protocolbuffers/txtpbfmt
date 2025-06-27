@@ -9,6 +9,7 @@ import (
 
 	"github.com/kylelemons/godebug/diff"
 	"github.com/kylelemons/godebug/pretty"
+	"github.com/protocolbuffers/txtpbfmt/config"
 )
 
 func TestError(t *testing.T) {
@@ -2025,7 +2026,7 @@ func TestParserConfigs(t *testing.T) {
 	inputs := []struct {
 		name    string
 		in      string
-		config  Config
+		config  config.Config
 		out     string
 		wantErr string
 	}{{
@@ -2038,7 +2039,7 @@ func TestParserConfigs(t *testing.T) {
   }
 }
 `,
-		config: Config{ExpandAllChildren: false},
+		config: config.Config{ExpandAllChildren: false},
 		out: `presubmit: {
   check_presubmit_service: {
     address: "address"
@@ -2057,7 +2058,7 @@ func TestParserConfigs(t *testing.T) {
   }
 }
 `,
-		config: Config{ExpandAllChildren: true},
+		config: config.Config{ExpandAllChildren: true},
 		out: `presubmit: {
   check_presubmit_service: {
     address: "address"
@@ -2070,14 +2071,14 @@ func TestParserConfigs(t *testing.T) {
 		name: "NotExpandedOnFix",
 		in: `presubmit: { check_presubmit_service: { address: "address" failure_status: WARNING options: "options" } }
 `,
-		config: Config{ExpandAllChildren: false},
+		config: config.Config{ExpandAllChildren: false},
 		out: `presubmit: { check_presubmit_service: { address: "address" failure_status: WARNING options: "options" } }
 `,
 	}, {
 		name: "ExpandedOnFix",
 		in: `presubmit: { check_presubmit_service: { address: "address" failure_status: WARNING options: "options" } }
 `,
-		config: Config{ExpandAllChildren: true},
+		config: config.Config{ExpandAllChildren: true},
 		out: `presubmit: {
   check_presubmit_service: {
     address: "address"
@@ -2100,7 +2101,7 @@ func TestParserConfigs(t *testing.T) {
   auto_reviewers: "reviewerA"
 }
 `,
-		config: Config{SortFieldsByFieldName: true},
+		config: config.Config{SortFieldsByFieldName: true},
 		out: `presubmit: {
   auto_reviewers: "reviewerB"
   # Should remain below reviewerB
@@ -2128,7 +2129,7 @@ func TestParserConfigs(t *testing.T) {
   auto_reviewers: "reviewerA"
 }
 `,
-		config: Config{SortRepeatedFieldsByContent: true},
+		config: config.Config{SortRepeatedFieldsByContent: true},
 		out: `presubmit: {
   auto_reviewers: "reviewerB"
   check_contents: {
@@ -2161,7 +2162,7 @@ func TestParserConfigs(t *testing.T) {
   auto_reviewers: "reviewerA"
 }
 `,
-		config: Config{SortRepeatedFieldsBySubfield: []string{"operation.name"}},
+		config: config.Config{SortRepeatedFieldsBySubfield: []string{"operation.name"}},
 		out: `presubmit: {
   auto_reviewers: "reviewerB"
   check_contents: {
@@ -2196,7 +2197,7 @@ func TestParserConfigs(t *testing.T) {
   }
 }
 `,
-		config: Config{SortRepeatedFieldsBySubfield: []string{"operation.name", "test.id"}},
+		config: config.Config{SortRepeatedFieldsBySubfield: []string{"operation.name", "test.id"}},
 		out: `presubmit: {
   operation {
     name: ADD
@@ -2231,7 +2232,7 @@ func TestParserConfigs(t *testing.T) {
   auto_reviewers: "reviewerA"
 }
 `,
-		config: Config{SortRepeatedFieldsBySubfield: []string{"name"}},
+		config: config.Config{SortRepeatedFieldsBySubfield: []string{"name"}},
 		out: `presubmit: {
   auto_reviewers: "reviewerB"
   check_contents: {
@@ -2262,7 +2263,7 @@ func TestParserConfigs(t *testing.T) {
   }
 }
 `,
-		config: Config{SortRepeatedFieldsBySubfield: []string{"name"}},
+		config: config.Config{SortRepeatedFieldsBySubfield: []string{"name"}},
 		out: `presubmit: {
   check_contents: {
     operation1: {
@@ -2292,7 +2293,7 @@ func TestParserConfigs(t *testing.T) {
   auto_reviewers: "reviewerA"
 }
 `,
-		config: Config{SortFieldsByFieldName: true, SortRepeatedFieldsBySubfield: []string{"name"}},
+		config: config.Config{SortFieldsByFieldName: true, SortRepeatedFieldsBySubfield: []string{"name"}},
 		out: `presubmit: {
   auto_reviewers: "reviewerB"
   # Should move above
@@ -2324,7 +2325,7 @@ func TestParserConfigs(t *testing.T) {
   auto_reviewers: "reviewerA"
 }
 `,
-		config: Config{SortRepeatedFieldsBySubfield: []string{"operation."}},
+		config: config.Config{SortRepeatedFieldsBySubfield: []string{"operation."}},
 		out: `presubmit: {
   auto_reviewers: "reviewerB"
   check_contents: {
@@ -2353,7 +2354,7 @@ func TestParserConfigs(t *testing.T) {
   auto_reviewers: "reviewerA"
 }
 `,
-		config: Config{SortFieldsByFieldName: true, SortRepeatedFieldsByContent: true},
+		config: config.Config{SortFieldsByFieldName: true, SortRepeatedFieldsByContent: true},
 		out: `presubmit: {
   # Should go before reviewerB
   auto_reviewers: "reviewerA"
@@ -2389,9 +2390,9 @@ func TestParserConfigs(t *testing.T) {
 	  unmoved_not_in_config: "bar"
 	}
 `,
-		config: Config{
-			fieldSortOrder: map[string][]string{
-				RootName:         {"wrapper", "below_wrapper"},
+		config: config.Config{
+			FieldSortOrder: map[string][]string{
+				config.RootName:  {"wrapper", "below_wrapper"},
 				"check_contents": {"z_first", "x_second", "x_third"},
 			},
 		},
@@ -2437,8 +2438,8 @@ below_wrapper: true
   sort_by_name_and_value: "foo"
 }
 `,
-		config: Config{
-			fieldSortOrder: map[string][]string{
+		config: config.Config{
+			FieldSortOrder: map[string][]string{
 				"check_contents": {"z_first", "x_second", "x_third", "not_required"},
 			},
 			SortFieldsByFieldName:       true,
@@ -2479,8 +2480,8 @@ below_wrapper: true
   }
 }
 `,
-		config: Config{
-			fieldSortOrder: map[string][]string{
+		config: config.Config{
+			FieldSortOrder: map[string][]string{
 				"check_contents": {"z_first", "x_second", "x_third"},
 			},
 			RequireFieldSortOrderToMatchAllFieldsInNode: true,
@@ -2503,7 +2504,7 @@ below_wrapper: true
   auto_reviewers: "reviewerA"
 }
 `,
-		config: Config{RemoveDuplicateValuesForRepeatedFields: true},
+		config: config.Config{RemoveDuplicateValuesForRepeatedFields: true},
 		out: `presubmit: {
   auto_reviewers: "reviewerB"
   auto_reviewers: "reviewerA"
@@ -2534,7 +2535,7 @@ below_wrapper: true
   auto_reviewers: "reviewerA"
 }
 `,
-		config: Config{
+		config: config.Config{
 			SortFieldsByFieldName:                  true,
 			SortRepeatedFieldsByContent:            true,
 			RemoveDuplicateValuesForRepeatedFields: true},
@@ -2553,7 +2554,7 @@ below_wrapper: true
 `,
 	}, {
 		name: "TripleQuotedStrings",
-		config: Config{
+		config: config.Config{
 			AllowTripleQuotedStrings: true,
 		},
 		in: `foo: """bar"""
@@ -2562,7 +2563,7 @@ below_wrapper: true
 `,
 	}, {
 		name: "TripleQuotedStrings_multiLine",
-		config: Config{
+		config: config.Config{
 			AllowTripleQuotedStrings: true,
 		},
 		in: `foo: """
@@ -2575,7 +2576,7 @@ below_wrapper: true
 `,
 	}, {
 		name: "TripleQuotedStrings_singleQuotes",
-		config: Config{
+		config: config.Config{
 			AllowTripleQuotedStrings: true,
 		},
 		in: `foo: '''
@@ -2588,7 +2589,7 @@ below_wrapper: true
 `,
 	}, {
 		name: "TripleQuotedStrings_brackets",
-		config: Config{
+		config: config.Config{
 			AllowTripleQuotedStrings: true,
 		},
 		in: `s: """ "}" """
@@ -2609,7 +2610,7 @@ foo: """
 `,
 	}, {
 		name: "WrapStringsAtColumn",
-		config: Config{
+		config: config.Config{
 			WrapStringsAtColumn: 15,
 		},
 		in: `# Comments are not wrapped
@@ -2623,7 +2624,7 @@ s:
 `,
 	}, {
 		name: "WrapStringsAtColumn_inlineChildren",
-		config: Config{
+		config: config.Config{
 			WrapStringsAtColumn: 14,
 		},
 		in: `root {
@@ -2648,7 +2649,7 @@ s:
 `,
 	}, {
 		name: "WrapStringsAtColumn_exactlyNumColumnsDoesNotWrap",
-		config: Config{
+		config: config.Config{
 			WrapStringsAtColumn: 14,
 		},
 		in: `root {
@@ -2665,7 +2666,7 @@ s:
 `,
 	}, {
 		name: "WrapStringsAtColumn_numColumnsPlus1Wraps",
-		config: Config{
+		config: config.Config{
 			WrapStringsAtColumn: 14,
 		},
 		in: `root {
@@ -2688,7 +2689,7 @@ s:
 `,
 	}, {
 		name: "WrapStringsAtColumn_commentKeptWhenLinesReduced",
-		config: Config{
+		config: config.Config{
 			WrapStringsAtColumn: 15,
 		},
 		in: `root {
@@ -2725,7 +2726,7 @@ s:
 `,
 	}, {
 		name: "WrapStringsAtColumn_doNotBreakLongWords",
-		config: Config{
+		config: config.Config{
 			WrapStringsAtColumn: 15,
 		},
 		in: `s: "one@two_three-four&five"
@@ -2734,7 +2735,7 @@ s:
 `,
 	}, {
 		name: "WrapStringsAtColumn_wrapHtml",
-		config: Config{
+		config: config.Config{
 			WrapStringsAtColumn: 15,
 			WrapHTMLStrings:     true,
 		},
@@ -2747,7 +2748,7 @@ s:
 `,
 	}, {
 		name: "WrapStringsAtColumn_empty",
-		config: Config{
+		config: config.Config{
 			WrapStringsAtColumn: 15,
 		},
 		in: `s: 
@@ -2756,7 +2757,7 @@ s:
 `,
 	}, {
 		name: "WrapStringsAtColumn_doNoWrapHtmlByDefault",
-		config: Config{
+		config: config.Config{
 			WrapStringsAtColumn: 15,
 		},
 		in: `s: "one two three <four>"
@@ -2765,7 +2766,7 @@ s:
 `,
 	}, {
 		name: "WrapStringsAtColumn_doNoWrapHtmlRealistic",
-		config: Config{
+		config: config.Config{
 			WrapStringsAtColumn: 40,
 		},
 		in: `text:
@@ -2792,7 +2793,7 @@ s:
 `,
 	}, {
 		name: "WrapStringsAtColumn_doNotWrapNonStrings",
-		config: Config{
+		config: config.Config{
 			WrapStringsAtColumn: 15,
 		},
 		in: `e: VERY_LONG_ENUM_VALUE
@@ -2805,7 +2806,7 @@ r: [1, 2, 3, 4, 5, 6, 7, 8, 9, 0]
 `,
 	}, {
 		name: "WrapStringsAtColumn_alreadyWrappedStringsAreNotRewrapped",
-		config: Config{
+		config: config.Config{
 			WrapStringsAtColumn: 15,
 		},
 		// Total length >15, but each existing line <15, so don't re-wrap 1st line to "I am ".
@@ -2821,7 +2822,7 @@ r: [1, 2, 3, 4, 5, 6, 7, 8, 9, 0]
 `,
 	}, {
 		name: "WrapStringsAtColumn_alreadyWrappedStringsAreNotRewrappedUnlessSomeAreLonger",
-		config: Config{
+		config: config.Config{
 			WrapStringsAtColumn: 15,
 		},
 		in: `s:
@@ -2839,7 +2840,7 @@ r: [1, 2, 3, 4, 5, 6, 7, 8, 9, 0]
 `,
 	}, {
 		name: "WrapStringsAtColumn_tripleQuotedStringsAreNotWrapped",
-		config: Config{
+		config: config.Config{
 			WrapStringsAtColumn:      15,
 			AllowTripleQuotedStrings: true,
 		},
@@ -2851,7 +2852,7 @@ s2: '''six seven eight nine'''
 `,
 	}, {
 		name: "WrapStringsAfterNewlines",
-		config: Config{
+		config: config.Config{
 			WrapStringsAfterNewlines: true,
 		},
 		in: `# Comments are not \n wrapped
@@ -2865,7 +2866,7 @@ s:
 `,
 	}, {
 		name: "WrapStringsAfterNewlines_motivatingExampleWithMarkup",
-		config: Config{
+		config: config.Config{
 			WrapStringsAfterNewlines: true,
 		},
 		in: `root {
@@ -2883,7 +2884,7 @@ s:
 `,
 	}, {
 		name: "WrapStringsAfterNewlines_inlineChildren",
-		config: Config{
+		config: config.Config{
 			WrapStringsAfterNewlines: true,
 		},
 		in: `root {
@@ -2908,7 +2909,7 @@ s:
 `,
 	}, {
 		name: "WrapStringsAfterNewlines_noNewlineDoesNotWrap",
-		config: Config{
+		config: config.Config{
 			WrapStringsAfterNewlines: true,
 		},
 		in: `root {
@@ -2925,7 +2926,7 @@ s:
 `,
 	}, {
 		name: "WrapStringsAfterNewlines_trailingNewlineDoesNotWrap",
-		config: Config{
+		config: config.Config{
 			WrapStringsAfterNewlines: true,
 		},
 		in: `root {
@@ -2938,7 +2939,7 @@ s:
 `,
 	}, {
 		name: "WrapStringsAfterNewlines_trailingNewlineDoesNotLeaveSuperfluousEmptyString",
-		config: Config{
+		config: config.Config{
 			WrapStringsAfterNewlines: true,
 		},
 		in: `root {
@@ -2953,7 +2954,7 @@ s:
 `,
 	}, {
 		name: "WrapStringsAfterNewlines_empty",
-		config: Config{
+		config: config.Config{
 			WrapStringsAfterNewlines: true,
 		},
 		in: `s: 
@@ -2973,7 +2974,7 @@ s:
 `,
 	}, {
 		name: "WrapStringsAfterNewlines_alreadyWrappedStringsAreRewrapped",
-		config: Config{
+		config: config.Config{
 			WrapStringsAfterNewlines: true,
 		},
 		in: `s:
@@ -2988,7 +2989,7 @@ s:
 `,
 	}, {
 		name: "WrapStringsAfterNewlines_tripleQuotedStringsAreNotWrapped",
-		config: Config{
+		config: config.Config{
 			WrapStringsAfterNewlines: true,
 			AllowTripleQuotedStrings: true,
 		},
@@ -3000,7 +3001,7 @@ s2: '''six seven \neight nine'''
 `,
 	}, {
 		name: "WrapStringsAfterNewlines_tooManyEscapesDoesNotWrap",
-		config: Config{
+		config: config.Config{
 			WrapStringsAfterNewlines: true,
 		},
 		in: `s: "7\nsev\xADen\x00"
@@ -3009,7 +3010,7 @@ s2: '''six seven \neight nine'''
 `,
 	}, {
 		name: "WrapStringsAfterNewlines_wayTooManyEscapesDoesNotWrap",
-		config: Config{
+		config: config.Config{
 			WrapStringsAfterNewlines: true,
 		},
 		in: `s: "ﾭ\xde\x00\x00\x00\x08\n(\x02\n\x0b\x00\x07\x01h\x0c\x14\x01"
@@ -3018,7 +3019,7 @@ s2: '''six seven \neight nine'''
 `,
 	}, {
 		name: "WrapStringsAfterNewlines_aFewEscapesStillWrap",
-		config: Config{
+		config: config.Config{
 			WrapStringsAfterNewlines: true,
 		},
 		in: `s: "aaaaaaaaaa \n bbbbbbbbbb \n cccccccccc \n dddddddddd \n eeeeeeeeee\x00 \n"
@@ -3032,7 +3033,7 @@ s2: '''six seven \neight nine'''
 `,
 	}, {
 		name: "WrapStringsAtColumn_noWordwrap",
-		config: Config{
+		config: config.Config{
 			WrapStringsAtColumn:        12,
 			WrapStringsWithoutWordwrap: true,
 		},
@@ -3055,7 +3056,7 @@ s:
 `,
 	}, {
 		name: "WrapStringsAtColumn_noWordwrapDeep",
-		config: Config{
+		config: config.Config{
 			WrapStringsAtColumn:        12,
 			WrapStringsWithoutWordwrap: true,
 		},
@@ -3069,7 +3070,7 @@ this_field_name_displays_wider_than_the_twelve_requested:  "this_goes_to_a_new_l
 `,
 	}, {
 		name: "WrapStringsAtColumn_noWordwrapDeepInlinePromotion",
-		config: Config{
+		config: config.Config{
 			WrapStringsAtColumn:        12,
 			WrapStringsWithoutWordwrap: true,
 		},
@@ -3100,7 +3101,7 @@ s:
 `,
 	}, {
 		name: "PreserveAngleBrackets",
-		config: Config{
+		config: config.Config{
 			PreserveAngleBrackets: true,
 		},
 		in: `foo <
@@ -3119,7 +3120,7 @@ foo {
 `,
 	}, {
 		name: "legacy quote behavior",
-		config: Config{
+		config: config.Config{
 			SmartQuotes: false,
 		},
 		in: `foo: "\"bar\""`,
@@ -3127,7 +3128,7 @@ foo {
 `,
 	}, {
 		name: "smart quotes",
-		config: Config{
+		config: config.Config{
 			SmartQuotes: true,
 		},
 		in: `foo: "\"bar\""`,
@@ -3135,7 +3136,7 @@ foo {
 `,
 	}, {
 		name: "smart quotes via meta comment",
-		config: Config{
+		config: config.Config{
 			SmartQuotes: false,
 		},
 		in: `# txtpbfmt: smartquotes
@@ -3277,7 +3278,7 @@ func TestSmartQuotes(t *testing.T) {
 		in := `foo: ` + tc.in
 		name := fmt.Sprintf("Format [ %s ] with legacy quote behavior", tc.in)
 		want := `foo: ` + tc.wantLegacy
-		gotRaw, err := FormatWithConfig([]byte(in), Config{SmartQuotes: false})
+		gotRaw, err := FormatWithConfig([]byte(in), config.Config{SmartQuotes: false})
 		got := strings.TrimSpace(string(gotRaw))
 		if err != nil {
 			t.Errorf("%s: got error: %s, want no error and [ %s ]", name, err, want)
@@ -3287,7 +3288,7 @@ func TestSmartQuotes(t *testing.T) {
 
 		name = fmt.Sprintf("Format [ %s ] with smart quote behavior", tc.in)
 		want = `foo: ` + tc.wantSmart
-		gotRaw, err = FormatWithConfig([]byte(`foo: `+tc.in), Config{SmartQuotes: true})
+		gotRaw, err = FormatWithConfig([]byte(`foo: `+tc.in), config.Config{SmartQuotes: true})
 		got = strings.TrimSpace(string(gotRaw))
 		if err != nil {
 			t.Errorf("%s: got error: %s, want no error and [ %s ]", name, err, want)

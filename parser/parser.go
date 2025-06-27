@@ -16,105 +16,16 @@ import (
 
 	"github.com/mitchellh/go-wordwrap"
 	"github.com/protocolbuffers/txtpbfmt/ast"
-	"github.com/protocolbuffers/txtpbfmt/logger"
+	"github.com/protocolbuffers/txtpbfmt/config"
 	"github.com/protocolbuffers/txtpbfmt/unquote"
 )
 
 // Config can be used to pass additional config parameters to the formatter at
 // the time of the API call.
-type Config struct {
-	// Do not apply any reformatting to this file.
-	Disable bool
-
-	// Expand all children irrespective of the initial state.
-	ExpandAllChildren bool
-
-	// Skip colons whenever possible.
-	SkipAllColons bool
-
-	// Allow unnamed nodes everywhere.
-	// Default is to allow only top-level nodes to be unnamed.
-	AllowUnnamedNodesEverywhere bool
-
-	// Sort fields by field name.
-	SortFieldsByFieldName bool
-
-	// Sort adjacent scalar fields of the same field name by their contents.
-	SortRepeatedFieldsByContent bool
-
-	// Sort adjacent message fields of the given field name by the contents of the given subfield path.
-	// Format: either "field_name.subfield_name.subfield_name2...subfield_nameN" or just
-	// "subfield_name" (applies to all field names).
-	SortRepeatedFieldsBySubfield []string
-
-	// Sort the Sort* fields by descending order instead of ascending order.
-	ReverseSort bool
-
-	// Map from Node.Name to the order of all fields within that node. See AddFieldSortOrder().
-	fieldSortOrder map[string][]string
-
-	// RequireFieldSortOrderToMatchAllFieldsInNode will cause parsing to fail if a node was added via
-	// AddFieldSortOrder() but 1+ fields under that node in the textproto aren't specified in the
-	// field order. This won't fail for nodes that don't have a field order specified at all. Use this
-	// to strictly enforce that your field order config always orders ALL the fields, and you're
-	// willing for new fields in the textproto to break parsing in order to enforce it.
-	RequireFieldSortOrderToMatchAllFieldsInNode bool
-
-	// Remove lines that have the same field name and scalar value as another.
-	RemoveDuplicateValuesForRepeatedFields bool
-
-	// Permit usage of Python-style """ or ''' delimited strings.
-	AllowTripleQuotedStrings bool
-
-	// Max columns for string field values. If zero, no string wrapping will occur.
-	// Strings that may contain HTML tags will never be wrapped.
-	WrapStringsAtColumn int
-
-	// Whether strings that appear to contain HTML tags should be wrapped
-	// (requires WrapStringsAtColumn to be set).
-	WrapHTMLStrings bool
-
-	// Wrap string field values after each newline.
-	// Should not be used with other Wrap* options.
-	WrapStringsAfterNewlines bool
-
-	// Wrap strictly at the column instead of a word boundary.
-	WrapStringsWithoutWordwrap bool
-
-	// Whether angle brackets used instead of curly braces should be preserved
-	// when outputting a formatted textproto.
-	PreserveAngleBrackets bool
-
-	// Use single quotes around strings that contain double but not single quotes.
-	SmartQuotes bool
-
-	// Logger enables logging when it is non-nil.
-	// If the log messages aren't going to be useful, it's best to leave Logger
-	// set to nil, as otherwise log messages will be constructed.
-	Logger logger.Logger
-}
-
-func (c *Config) infof(format string, args ...any) {
-	if c.Logger != nil {
-		c.Logger.Infof(format, args...)
-	}
-}
-func (c *Config) infoLevel() bool {
-	return c.Logger != nil
-}
+type Config = config.Config
 
 // RootName contains a constant that can be used to identify the root of all Nodes.
-const RootName = "__ROOT__"
-
-// AddFieldSortOrder adds a config rule for the given Node.Name, so that all contained field names
-// are output in the provided order. To specify an order for top-level Nodes, use RootName as the
-// nodeName.
-func (c *Config) AddFieldSortOrder(nodeName string, fieldOrder ...string) {
-	if c.fieldSortOrder == nil {
-		c.fieldSortOrder = make(map[string][]string)
-	}
-	c.fieldSortOrder[nodeName] = fieldOrder
-}
+const RootName = config.RootName
 
 // UnsortedFieldsError will be returned by ParseWithConfig if
 // Config.RequireFieldSortOrderToMatchAllFieldsInNode is set, and an unrecognized field is found
@@ -145,11 +56,11 @@ type parser struct {
 	// Maps the index of '{' characters on 'in' that have the matching '}' on
 	// the same line to 'true'.
 	bracketSameLine map[int]bool
-	config          Config
+	config          config.Config
 	line, column    int // current position, 1-based.
 }
 
-var defConfig = Config{}
+var defConfig = config.Config{}
 var tagRegex = regexp.MustCompile(`<.*>`)
 
 const indentSpaces = "  "
@@ -161,12 +72,12 @@ func Format(in []byte) ([]byte, error) {
 
 // FormatWithConfig functions similar to format, but allows the user to pass in
 // additional configuration options.
-func FormatWithConfig(in []byte, c Config) ([]byte, error) {
+func FormatWithConfig(in []byte, c config.Config) ([]byte, error) {
 	if err := addMetaCommentsToConfig(in, &c); err != nil {
 		return nil, err
 	}
 	if c.Disable {
-		c.infof("Ignored file with 'disable' comment.")
+		c.Infof("Ignored file with 'disable' comment.")
 		return in, nil
 	}
 	nodes, err := parseWithMetaCommentConfig(in, c)
@@ -316,7 +227,7 @@ func Parse(in []byte) ([]*ast.Node, error) {
 
 // ParseWithConfig functions similar to Parse, but allows the user to pass in
 // additional configuration options.
-func ParseWithConfig(in []byte, c Config) ([]*ast.Node, error) {
+func ParseWithConfig(in []byte, c config.Config) ([]*ast.Node, error) {
 	if err := addMetaCommentsToConfig(in, &c); err != nil {
 		return nil, err
 	}
@@ -324,14 +235,14 @@ func ParseWithConfig(in []byte, c Config) ([]*ast.Node, error) {
 }
 
 // Parses in textproto with MetaComments already added to configuration.
-func parseWithMetaCommentConfig(in []byte, c Config) ([]*ast.Node, error) {
+func parseWithMetaCommentConfig(in []byte, c config.Config) ([]*ast.Node, error) {
 	p, err := newParser(in, c)
 	if err != nil {
 		return nil, err
 	}
-	if p.config.infoLevel() {
-		p.config.infof("p.in: %q", string(p.in))
-		p.config.infof("p.length: %v", p.length)
+	if p.config.InfoLevel() {
+		p.config.Infof("p.in: %q", string(p.in))
+		p.config.Infof("p.length: %v", p.length)
 	}
 	// Although unnamed nodes aren't strictly allowed, some formats represent a
 	// list of protos as a list of unnamed top-level nodes.
@@ -358,7 +269,7 @@ func parseWithMetaCommentConfig(in []byte, c Config) ([]*ast.Node, error) {
 //	to the config and the order is perserved.
 //	"wrap_strings_at_column": The <val> is expected to be an integer. If it is not, then it will be
 //	ignored. If this appears multiple times, only the last one saved.
-func addToConfig(metaComment string, c *Config) error {
+func addToConfig(metaComment string, c *config.Config) error {
 	// Test if a MetaComment is in the format of <key>=<val>.
 	key, val, hasEqualSign := strings.Cut(metaComment, "=")
 	switch key {
@@ -415,7 +326,7 @@ func addToConfig(metaComment string, c *Config) error {
 }
 
 // Parses MetaComments and adds them to the configuration.
-func addMetaCommentsToConfig(in []byte, c *Config) error {
+func addMetaCommentsToConfig(in []byte, c *config.Config) error {
 	scanner := bufio.NewScanner(bytes.NewReader(in))
 	for scanner.Scan() {
 		line := scanner.Text()
@@ -442,7 +353,7 @@ func addMetaCommentsToConfig(in []byte, c *Config) error {
 	return nil
 }
 
-func newParser(in []byte, c Config) (*parser, error) {
+func newParser(in []byte, c config.Config) (*parser, error) {
 	var bracketSameLine map[int]bool
 	if c.ExpandAllChildren {
 		bracketSameLine = map[int]bool{}
@@ -609,8 +520,8 @@ func (p *parser) parse(isRoot bool) (result []*ast.Node, endPos ast.Position, er
 
 		// Handle blank lines.
 		if blankLines > 0 {
-			if p.config.infoLevel() {
-				p.config.infof("blankLines: %v", blankLines)
+			if p.config.InfoLevel() {
+				p.config.Infof("blankLines: %v", blankLines)
 			}
 			// Here we collapse the leading blank lines into one blank line.
 			comments = append([]string{""}, comments...)
@@ -648,8 +559,8 @@ func (p *parser) parse(isRoot bool) (result []*ast.Node, endPos ast.Position, er
 			Start:       startPos,
 			PreComments: comments,
 		}
-		if p.config.infoLevel() {
-			p.config.infof("PreComments: %q", strings.Join(nd.PreComments, "\n"))
+		if p.config.InfoLevel() {
+			p.config.Infof("PreComments: %q", strings.Join(nd.PreComments, "\n"))
 		}
 
 		// Skip white-space other than '\n', which is handled below.
@@ -715,8 +626,8 @@ func (p *parser) parse(isRoot bool) (result []*ast.Node, endPos ast.Position, er
 				return nil, ast.Position{}, err
 			}
 		}
-		if p.config.infoLevel() && p.index < p.length {
-			p.config.infof("p.in[p.index]: %q", string(p.in[p.index]))
+		if p.config.InfoLevel() && p.index < p.length {
+			p.config.Infof("p.in[p.index]: %q", string(p.in[p.index]))
 		}
 		res = append(res, nd)
 	}
@@ -735,8 +646,8 @@ func (p *parser) parseFieldName(nd *ast.Node, isRoot bool) error {
 			return fmt.Errorf("Failed to find a FieldName at %s", p.errorContext())
 		}
 	}
-	if p.config.infoLevel() {
-		p.config.infof("name: %q", nd.Name)
+	if p.config.InfoLevel() {
+		p.config.Infof("name: %q", nd.Name)
 	}
 	return nil
 }
@@ -963,10 +874,10 @@ func (p *parser) skipWhiteSpaceAndReadComments(multiLine bool) ([]string, int) {
 		}
 	}
 	sep := p.advance(i)
-	if p.config.infoLevel() {
-		p.config.infof("sep: %q\np.index: %v", string(sep), p.index)
+	if p.config.InfoLevel() {
+		p.config.Infof("sep: %q\np.index: %v", string(sep), p.index)
 		if p.index < p.length {
-			p.config.infof("p.in[p.index]: %q", string(p.in[p.index]))
+			p.config.Infof("p.in[p.index]: %q", string(p.in[p.index]))
 		}
 	}
 	return comments, blankLines
@@ -1031,8 +942,8 @@ func (p *parser) readValues() ([]*ast.Value, error) {
 		// Handle other values.
 		values = append(values, p.readOtherValue(i, preComments))
 	}
-	if p.config.infoLevel() {
-		p.config.infof("values: %v", values)
+	if p.config.InfoLevel() {
+		p.config.Infof("values: %v", values)
 	}
 	return values, nil
 }
@@ -1112,8 +1023,8 @@ func (p *parser) readTripleQuotedString() (*ast.Value, error) {
 }
 
 func (p *parser) populateValue(vl string, preComments []string) *ast.Value {
-	if p.config.infoLevel() {
-		p.config.infof("value: %q", vl)
+	if p.config.InfoLevel() {
+		p.config.Infof("value: %q", vl)
 	}
 	return &ast.Value{
 		Value:         vl,
@@ -1124,8 +1035,8 @@ func (p *parser) populateValue(vl string, preComments []string) *ast.Value {
 
 func (p *parser) readInlineComment() string {
 	inlineComment, _ := p.skipWhiteSpaceAndReadComments(false /* multiLine */)
-	if p.config.infoLevel() {
-		p.config.infof("inlineComment: %q", strings.Join(inlineComment, "\n"))
+	if p.config.InfoLevel() {
+		p.config.Infof("inlineComment: %q", strings.Join(inlineComment, "\n"))
 	}
 	if len(inlineComment) > 0 {
 		return inlineComment[0]
@@ -1216,7 +1127,7 @@ func RemoveDuplicates(nodes []*ast.Node) {
 	}
 }
 
-func wrapStrings(nodes []*ast.Node, depth int, c Config) error {
+func wrapStrings(nodes []*ast.Node, depth int, c config.Config) error {
 	if c.WrapStringsAtColumn == 0 && !c.WrapStringsAfterNewlines {
 		return nil
 	}
@@ -1234,7 +1145,7 @@ func wrapStrings(nodes []*ast.Node, depth int, c Config) error {
 	return nil
 }
 
-func wrapNodeStrings(nd *ast.Node, depth int, c Config) error {
+func wrapNodeStrings(nd *ast.Node, depth int, c config.Config) error {
 	if c.WrapStringsAtColumn > 0 && needsWrappingAtColumn(nd, depth, c) {
 		if err := wrapLinesAtColumn(nd, depth, c); err != nil {
 			return err
@@ -1248,7 +1159,7 @@ func wrapNodeStrings(nd *ast.Node, depth int, c Config) error {
 	return nil
 }
 
-func shouldWrapString(v *ast.Value, maxLength int, c Config) bool {
+func shouldWrapString(v *ast.Value, maxLength int, c config.Config) bool {
 	if len(v.Value) >= 3 && (strings.HasPrefix(v.Value, `'''`) || strings.HasPrefix(v.Value, `"""`)) {
 		// Don't wrap triple-quoted strings
 		return false
@@ -1260,7 +1171,7 @@ func shouldWrapString(v *ast.Value, maxLength int, c Config) bool {
 	return len(v.Value) > maxLength || c.WrapStringsWithoutWordwrap
 }
 
-func shouldNotWrapString(nd *ast.Node, c Config) bool {
+func shouldNotWrapString(nd *ast.Node, c config.Config) bool {
 	if !c.WrapHTMLStrings {
 		for _, v := range nd.Values {
 			if tagRegex.Match([]byte(v.Value)) {
@@ -1271,7 +1182,7 @@ func shouldNotWrapString(nd *ast.Node, c Config) bool {
 	return false
 }
 
-func needsWrappingAtColumn(nd *ast.Node, depth int, c Config) bool {
+func needsWrappingAtColumn(nd *ast.Node, depth int, c config.Config) bool {
 	// Even at depth 0 we have a 2-space indent when the wrapped string is rendered on the line below
 	// the field name.
 	const lengthBuffer = 2
@@ -1338,7 +1249,7 @@ func adjustLineLength(nd *ast.Node, v *ast.Value, line string, maxLength int, i 
 // If the Values of this Node constitute a string, and if Config.WrapStringsAtColumn > 0, then wrap
 // the string so each line is within the specified columns. Wraps only the current Node (does not
 // recurse into Children).
-func wrapLinesAtColumn(nd *ast.Node, depth int, c Config) error {
+func wrapLinesAtColumn(nd *ast.Node, depth int, c config.Config) error {
 	// This function looks at the unquoted ast.Value.Value string (i.e., with each Value's wrapping
 	// quote chars removed). We need to remove these quotes, since otherwise they'll be re-flowed into
 	// the body of the text.
@@ -1394,7 +1305,7 @@ func wrapLinesAtColumn(nd *ast.Node, depth int, c Config) error {
 // N.b.: this will incorrectly match `\\\\x`, which hopefully is rare.
 var byteEscapeRegex = regexp.MustCompile(`\\x`)
 
-func needsWrappingAfterNewlines(nd *ast.Node, c Config) bool {
+func needsWrappingAfterNewlines(nd *ast.Node, c config.Config) bool {
 	for _, v := range nd.Values {
 		if len(v.Value) >= 3 && (strings.HasPrefix(v.Value, `'''`) || strings.HasPrefix(v.Value, `"""`)) {
 			// Don't wrap triple-quoted strings
@@ -1420,7 +1331,7 @@ func needsWrappingAfterNewlines(nd *ast.Node, c Config) bool {
 // If the Values of this Node constitute a string, and if Config.WrapStringsAfterNewlines,
 // then wrap the string so each line ends with a newline.
 // Wraps only the current Node (does not recurse into Children).
-func wrapLinesAfterNewlines(nd *ast.Node, c Config) error {
+func wrapLinesAfterNewlines(nd *ast.Node, c config.Config) error {
 	str, quote, err := unquote.Raw(nd)
 	if err != nil {
 		return fmt.Errorf("skipping string wrapping on node %q (error unquoting string): %v", nd.Name, err)
@@ -1581,10 +1492,10 @@ func (ufc *UnsortedFieldCollector) asError() error {
 	return &UnsortedFieldsError{fields}
 }
 
-func nodeSortFunction(c Config) NodeSortFunction {
+func nodeSortFunction(c config.Config) NodeSortFunction {
 	var sorter ast.NodeLess = nil
 	unsortedFieldCollector := newUnsortedFieldCollector()
-	for name, fieldOrder := range c.fieldSortOrder {
+	for name, fieldOrder := range c.FieldSortOrder {
 		sorter = ast.ChainNodeLess(sorter, ByFieldOrder(name, fieldOrder, unsortedFieldCollector.collect))
 	}
 	if c.SortFieldsByFieldName {
@@ -1621,14 +1532,14 @@ func parseSubfieldSpec(subfieldSpec string) (field string, subfieldPath []string
 	return parts[0], parts[1:]
 }
 
-func nodeFilterFunction(c Config) NodeFilterFunction {
+func nodeFilterFunction(c config.Config) NodeFilterFunction {
 	if c.RemoveDuplicateValuesForRepeatedFields {
 		return RemoveDuplicates
 	}
 	return nil
 }
 
-func valuesSortFunction(c Config) ValuesSortFunction {
+func valuesSortFunction(c config.Config) ValuesSortFunction {
 	if c.SortRepeatedFieldsByContent {
 		if c.ReverseSort {
 			return ast.SortValuesReverse
@@ -1642,7 +1553,7 @@ func getNodePriorityForByFieldOrder(parent, node *ast.Node, name string, priorit
 	if parent != nil && parent.Name != name {
 		return nil
 	}
-	if parent == nil && name != RootName {
+	if parent == nil && name != config.RootName {
 		return nil
 	}
 	// CommentOnly nodes don't set priority below, and default to MaxInt, which keeps them at the bottom
