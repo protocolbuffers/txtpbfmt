@@ -13,6 +13,7 @@ import (
 	"flag"
 	// Google internal base/go package, commented out by copybara
 	log "github.com/golang/glog"
+	"github.com/protocolbuffers/txtpbfmt/logger"
 	"github.com/protocolbuffers/txtpbfmt/parser"
 )
 
@@ -78,7 +79,7 @@ func processPath(path string) error {
 	}
 
 	// Only pass the verbose logger if its level is enabled.
-	var logger parser.Logger
+	var logger logger.Logger
 	if l := log.V(2); l {
 		logger = l
 	}
