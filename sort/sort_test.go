@@ -172,15 +172,15 @@ func TestProcess(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			sortFunction := nodeSortFunction(tc.c)
+			sortFunction := nodeSortFunctionConfig(tc.c)
 			if tc.skipSortFunction {
 				sortFunction = nil
 			}
-			filterFunction := nodeFilterFunction(tc.c)
+			filterFunction := nodeFilterFunctionConfig(tc.c)
 			if tc.skipFilterFunction {
 				filterFunction = nil
 			}
-			valuesFunction := valuesSortFunction(tc.c)
+			valuesFunction := valuesSortFunctionConfig(tc.c)
 			if tc.skipValuesFunction {
 				valuesFunction = nil
 			}
@@ -288,9 +288,9 @@ func TestRemoveDuplicates(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			RemoveDuplicates(tc.nodes)
+			removeDuplicates(tc.nodes)
 			if diff := cmp.Diff(tc.want, tc.nodes); diff != "" {
-				t.Errorf("RemoveDuplicates(%v) returned diff (-want +got):\n%s", tc.nodes, diff)
+				t.Errorf("removeDuplicates(%v) returned diff (-want +got):\n%s", tc.nodes, diff)
 			}
 		})
 	}
@@ -329,9 +329,9 @@ func TestNodeSortFunction(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			got := nodeSortFunction(tc.c)
+			got := nodeSortFunctionConfig(tc.c)
 			if (got != nil) != tc.want {
-				t.Errorf("nodeSortFunction(%v) got %v, want %v", tc.c, got, tc.want)
+				t.Errorf("nodeSortFunctionConfig(%v) got %v, want %v", tc.c, got, tc.want)
 			}
 		})
 	}
@@ -354,9 +354,9 @@ func TestNodeFilterFunction(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			got := nodeFilterFunction(tc.c)
+			got := nodeFilterFunctionConfig(tc.c)
 			if (got != nil) != tc.want {
-				t.Errorf("nodeFilterFunction(%v) got %v, want %v", tc.c, got, tc.want)
+				t.Errorf("nodeFilterFunctionConfig(%v) got %v, want %v", tc.c, got, tc.want)
 			}
 		})
 	}
@@ -379,9 +379,9 @@ func TestValuesSortFunction(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			got := valuesSortFunction(tc.c)
+			got := valuesSortFunctionConfig(tc.c)
 			if (got != nil) != tc.want {
-				t.Errorf("valuesSortFunction(%v) got %v, want %v", tc.c, got, tc.want)
+				t.Errorf("valuesSortFunctionConfig(%v) got %v, want %v", tc.c, got, tc.want)
 			}
 		})
 	}
@@ -394,7 +394,7 @@ func TestGetNodePriorityForByFieldOrder(t *testing.T) {
 		node              *ast.Node
 		nodeName          string
 		priorities        map[string]int
-		unsortedCollector UnsortedFieldCollectorFunc
+		unsortedCollector unsortedFieldCollectorFunc
 		want              int
 	}{{
 		name: "parent name mismatch",

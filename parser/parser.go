@@ -32,9 +32,6 @@ const RootName = config.RootName
 // while parsing.
 type UnsortedFieldsError = sort.UnsortedFieldsError
 
-// UnsortedField records details about a single unsorted field.
-type UnsortedField = sort.UnsortedField
-
 type parser struct {
 	in     []byte
 	index  int
@@ -1063,20 +1060,6 @@ func (p *parser) readTemplate() string {
 	return p.advance(i)
 }
 
-// NodeSortFunction sorts the given nodes, using the parent node as context. parent can be nil.
-type NodeSortFunction = sort.NodeSortFunction
-
-// NodeFilterFunction filters the given nodes.
-type NodeFilterFunction = sort.NodeFilterFunction
-
-// ValuesSortFunction sorts the given values.
-type ValuesSortFunction = sort.ValuesSortFunction
-
-// RemoveDuplicates marks duplicate key:value pairs from nodes as Deleted.
-func RemoveDuplicates(nodes []*ast.Node) {
-	sort.RemoveDuplicates(nodes)
-}
-
 func wrapStrings(nodes []*ast.Node, depth int, c config.Config) error {
 	if c.WrapStringsAtColumn == 0 && !c.WrapStringsAfterNewlines {
 		return nil
@@ -1411,19 +1394,6 @@ func PrettyBytes(nodes []*ast.Node, depth int) []byte {
 	var result bytes.Buffer
 	formatter{&result}.writeNodes(removeDeleted(nodes), depth, false /* isSameLine */, false /* asListItems */)
 	return result.Bytes()
-}
-
-// UnsortedFieldCollector collects UnsortedFields during parsing.
-type UnsortedFieldCollector = sort.UnsortedFieldCollector
-
-// UnsortedFieldCollectorFunc collects UnsortedFields during parsing.
-type UnsortedFieldCollectorFunc = sort.UnsortedFieldCollectorFunc
-
-// ByFieldOrder returns a NodeLess function that orders fields within a node named name
-// by the order specified in fieldOrder. Nodes sorted but not specified by the field order
-// are bubbled to the top and reported to unsortedCollector.
-func ByFieldOrder(name string, fieldOrder []string, unsortedCollector UnsortedFieldCollectorFunc) ast.NodeLess {
-	return sort.ByFieldOrder(name, fieldOrder, unsortedCollector)
 }
 
 // stringWriter abstracts over bytes.Buffer and strings.Builder
