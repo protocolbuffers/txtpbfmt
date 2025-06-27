@@ -20,9 +20,6 @@ import (
 	"github.com/protocolbuffers/txtpbfmt/unquote"
 )
 
-// Logger is a small glog-like interface.
-type Logger = logger.Logger
-
 // Config can be used to pass additional config parameters to the formatter at
 // the time of the API call.
 type Config struct {
