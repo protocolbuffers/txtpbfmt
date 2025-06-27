@@ -16,8 +16,12 @@ import (
 
 	"github.com/mitchellh/go-wordwrap"
 	"github.com/protocolbuffers/txtpbfmt/ast"
+	"github.com/protocolbuffers/txtpbfmt/logger"
 	"github.com/protocolbuffers/txtpbfmt/unquote"
 )
+
+// Logger is a small glog-like interface.
+type Logger = logger.Logger
 
 // Config can be used to pass additional config parameters to the formatter at
 // the time of the API call.
@@ -90,7 +94,7 @@ type Config struct {
 	// Logger enables logging when it is non-nil.
 	// If the log messages aren't going to be useful, it's best to leave Logger
 	// set to nil, as otherwise log messages will be constructed.
-	Logger Logger
+	Logger logger.Logger
 }
 
 func (c *Config) infof(format string, args ...any) {
@@ -100,12 +104,6 @@ func (c *Config) infof(format string, args ...any) {
 }
 func (c *Config) infoLevel() bool {
 	return c.Logger != nil
-}
-
-// Logger is a small glog-like interface.
-type Logger interface {
-	// Infof is used for informative messages, for testing or debugging.
-	Infof(format string, args ...any)
 }
 
 // RootName contains a constant that can be used to identify the root of all Nodes.
