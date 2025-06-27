@@ -28,106 +28,94 @@ func TestParsePositions(t *testing.T) {
 		in                 string
 		startByte, endByte int
 		start, end         ast.Position
-	}{
-		{
-			in:        `trackme: "foo"` + "\n",
-			startByte: 0,
-		},
-		{
-			in: mkString(
-				"# top",      // 5 bytes + newline
-				"trackme: 4", // 10 bytes + newline
-			),
-			startByte: 0,
-		},
-		{
-			in: mkString(
-				"# top",        // 5 bytes + newline
-				"unrelated: 1", // 12 bytes + newline
-				"trackme: 4",
-			),
-			startByte: 19,
-		},
-		{
-			in:        "trackme: {\n}",
-			startByte: 0, endByte: 11,
-			start: ast.Position{Line: 1, Column: 1},
-			end:   ast.Position{Line: 2},
-		},
-		{
-			in: mkString(
-				"# top",        // 5 bytes + newline
-				"unrelated: 1", // 12 bytes + newline
-				"",             // this already gets accounted for trackme
-				"trackme: 4",
-			),
-			startByte: 19,
-		},
-		{
-			in: mkString(
-				"# top",        // 5 bytes + newline
-				"unrelated: 1", // 12 bytes + newline
-				"# boo",        // this already gets accounted for trackme
-				"trackme: 4",
-			),
-			startByte: 19,
-		},
-		{
-			in: mkString(
-				"# top",        // 5 bytes + newline
-				"unrelated: 1", // 12 bytes + newline
-				"",             // this already gets accounted for trackme
-				"# boo",
-				"trackme: 4",
-			),
-			startByte: 19,
-		},
-		{
-			in: mkString(
-				"outer: {", // 8 bytes + newline
-				"  foo: 1", // 8 bytes + newline
-				"  trackme: 4",
-				"}",
-			),
-			startByte: 18,
-		},
-		{
-			in: mkString(
-				"outer: {", // 8 bytes + newline
-				"  foo: 1", // 8 bytes + newline
-				"",         // acounted already for trackme
-				"  # multiline desc",
-				"  # for trackme",
-				"  trackme: 4",
-				"}",
-			),
-			startByte: 18,
-		},
-		{
-			in: mkString(
-				"trackme: {",   // 10 bytes + newline
-				"  content: 1", // 12 bytes + newline
-				"}",
-			),
-			startByte: 0, endByte: 24,
-			start: ast.Position{Line: 1, Column: 1},
-			end:   ast.Position{Line: 3},
-		},
-		{
-			in: mkString(
-				"outer: {",          // 8 bytes + newline
-				"  a: 1",            // 6 bytes + newline
-				"  trackme: {",      // 12 bytes + newline
-				"    b: 2",          // 8 bytes + newline
-				"    # end comment", // 17 bytes + newline
-				"  }",
-				"}",
-			),
-			startByte: 9 + 7, endByte: 9 + 7 + 13 + 9 + 18,
-			start: ast.Position{Line: 3, Column: 1},
-			end:   ast.Position{Line: 6},
-		},
-	} {
+	}{{
+		in:        `trackme: "foo"` + "\n",
+		startByte: 0,
+	}, {
+		in: mkString(
+			"# top",      // 5 bytes + newline
+			"trackme: 4", // 10 bytes + newline
+		),
+		startByte: 0,
+	}, {
+		in: mkString(
+			"# top",        // 5 bytes + newline
+			"unrelated: 1", // 12 bytes + newline
+			"trackme: 4",
+		),
+		startByte: 19,
+	}, {
+		in:        "trackme: {\n}",
+		startByte: 0, endByte: 11,
+		start: ast.Position{Line: 1, Column: 1},
+		end:   ast.Position{Line: 2},
+	}, {
+		in: mkString(
+			"# top",        // 5 bytes + newline
+			"unrelated: 1", // 12 bytes + newline
+			"",             // this already gets accounted for trackme
+			"trackme: 4",
+		),
+		startByte: 19,
+	}, {
+		in: mkString(
+			"# top",        // 5 bytes + newline
+			"unrelated: 1", // 12 bytes + newline
+			"# boo",        // this already gets accounted for trackme
+			"trackme: 4",
+		),
+		startByte: 19,
+	}, {
+		in: mkString(
+			"# top",        // 5 bytes + newline
+			"unrelated: 1", // 12 bytes + newline
+			"",             // this already gets accounted for trackme
+			"# boo",
+			"trackme: 4",
+		),
+		startByte: 19,
+	}, {
+		in: mkString(
+			"outer: {", // 8 bytes + newline
+			"  foo: 1", // 8 bytes + newline
+			"  trackme: 4",
+			"}",
+		),
+		startByte: 18,
+	}, {
+		in: mkString(
+			"outer: {", // 8 bytes + newline
+			"  foo: 1", // 8 bytes + newline
+			"",         // acounted already for trackme
+			"  # multiline desc",
+			"  # for trackme",
+			"  trackme: 4",
+			"}",
+		),
+		startByte: 18,
+	}, {
+		in: mkString(
+			"trackme: {",   // 10 bytes + newline
+			"  content: 1", // 12 bytes + newline
+			"}",
+		),
+		startByte: 0, endByte: 24,
+		start: ast.Position{Line: 1, Column: 1},
+		end:   ast.Position{Line: 3},
+	}, {
+		in: mkString(
+			"outer: {",          // 8 bytes + newline
+			"  a: 1",            // 6 bytes + newline
+			"  trackme: {",      // 12 bytes + newline
+			"    b: 2",          // 8 bytes + newline
+			"    # end comment", // 17 bytes + newline
+			"  }",
+			"}",
+		),
+		startByte: 9 + 7, endByte: 9 + 7 + 13 + 9 + 18,
+		start: ast.Position{Line: 3, Column: 1},
+		end:   ast.Position{Line: 6},
+	}} {
 		nodes, err := Parse([]byte(tc.in))
 		if err != nil {
 			t.Fatal(err)
