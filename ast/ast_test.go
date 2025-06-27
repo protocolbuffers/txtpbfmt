@@ -218,47 +218,40 @@ func TestIsCommentOnly(t *testing.T) {
 		in: `foo: 1
 bar: 2`,
 		want: []bool{false, false},
-	},
-		{
-			in: `foo: 1
+	}, {
+		in: `foo: 1
 bar: 2
 `,
-			want: []bool{false, false},
-		},
-		{
-			in: `foo: 1
+		want: []bool{false, false},
+	}, {
+		in: `foo: 1
 bar: 2
 # A long trailing comment
 # over multiple lines.
 `,
-			want: []bool{false, false, true},
-		},
-		{
-			in: `first {
+		want: []bool{false, false, true},
+	}, {
+		in: `first {
   foo: true  # bar
 }
 `,
-			want: []bool{false},
-		},
-		{
-			in: `first {
+		want: []bool{false},
+	}, {
+		in: `first {
   foo: true  # bar
 }
 # trailing comment
 `,
-			want: []bool{false, true},
-		},
-		{
-			in: `foo: 1
+		want: []bool{false, true},
+	}, {
+		in: `foo: 1
 
 `,
-			want: []bool{false, true},
-		},
-		{
-			in:   `{}`,
-			want: []bool{false},
-		},
-	}
+		want: []bool{false, true},
+	}, {
+		in:   `{}`,
+		want: []bool{false},
+	}}
 	for _, input := range inputs {
 		nodes, err := parser.Parse([]byte(input.in))
 		if err != nil {
@@ -284,43 +277,37 @@ func TestIsBlankLine(t *testing.T) {
 		in: `foo: 1
 bar: 2`,
 		want: []bool{false, false},
-	},
-		{
-			in: `foo: 1
+	}, {
+		in: `foo: 1
 bar: 2
 `,
-			want: []bool{false, false},
-		},
-		{
-			in: `foo: 1
+		want: []bool{false, false},
+	}, {
+		in: `foo: 1
 bar: 2
 # A trailing comment.
 `,
-			want: []bool{false, false, false},
-		},
-		{
-			in: `first {
+		want: []bool{false, false, false},
+	}, {
+		in: `first {
   foo: true  # bar
 }
 # trailing comment
 `,
-			want: []bool{false, false},
-		},
-		{
-			in: `foo: 1
+		want: []bool{false, false},
+	}, {
+		in: `foo: 1
 
 `,
-			want: []bool{false, true},
-		},
-		{
-			in: `# Header comment.
+		want: []bool{false, true},
+	}, {
+		in: `# Header comment.
 
 foo: 1
 `,
-			// The blank line is part of the node of the `foo: 1` item.
-			want: []bool{false, false},
-		},
-	}
+		// The blank line is part of the node of the `foo: 1` item.
+		want: []bool{false, false},
+	}}
 	for _, input := range inputs {
 		nodes, err := parser.Parse([]byte(input.in))
 		if err != nil {
