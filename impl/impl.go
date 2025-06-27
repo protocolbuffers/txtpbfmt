@@ -6,12 +6,12 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
-	"regexp"
 	"strconv"
 	"strings"
 
 	"github.com/protocolbuffers/txtpbfmt/ast"
 	"github.com/protocolbuffers/txtpbfmt/config"
+	"github.com/protocolbuffers/txtpbfmt/quote"
 	"github.com/protocolbuffers/txtpbfmt/sort"
 	"github.com/protocolbuffers/txtpbfmt/wrap"
 )
@@ -28,9 +28,6 @@ type parser struct {
 }
 
 var defConfig = config.Config{}
-var tagRegex = regexp.MustCompile(`<.*>`)
-
-const indentSpaces = "  "
 
 type bracketState struct {
 	insideComment            bool
@@ -881,9 +878,9 @@ func (p *parser) readSingleQuotedStringValue(preComments []string) (*ast.Value, 
 		if p.in[i] == p.in[stringBegin] {
 			var vl string
 			if p.config.SmartQuotes {
-				vl = smartQuotes(p.advance(i))
+				vl = quote.Smart(p.advance(i))
 			} else {
-				vl = fixQuotes(p.advance(i))
+				vl = quote.Fix(p.advance(i))
 			}
 			_ = p.advance(i + 1) // Skip the quote.
 			return p.populateValue(vl, preComments), nil
@@ -986,75 +983,4 @@ func (p *parser) readTemplate() string {
 		}
 	}
 	return p.advance(i)
-}
-
-func adjustLineLength(nd *ast.Node, v *ast.Value, line string, maxLength int, i int, numLines int) {
-	lineLength := len(line)
-	if v.InlineComment != "" {
-		lineLength += len(indentSpaces) + len(v.InlineComment)
-	}
-	// field name and field value are inlined for single strings, adjust for that.
-	if i == 0 && numLines == 1 {
-		lineLength += len(nd.Name)
-	}
-	if lineLength > maxLength {
-		// If there's an inline comment, promote it to a pre-comment which will
-		// emit a newline.
-		if v.InlineComment != "" {
-			v.PreComments = append(v.PreComments, v.InlineComment)
-			v.InlineComment = ""
-		} else if i == 0 && len(v.PreComments) == 0 {
-			// It's too long and we don't have any comments.
-			nd.PutSingleValueOnNextLine = true
-		}
-	}
-}
-
-func fixQuotes(s string) string {
-	res := make([]byte, 0, len(s))
-	res = append(res, '"')
-	for i := 0; i < len(s); i++ {
-		if s[i] == '"' {
-			res = append(res, '\\')
-		} else if s[i] == '\\' {
-			res = append(res, s[i])
-			i++
-		}
-		res = append(res, s[i])
-	}
-	res = append(res, '"')
-	return string(res)
-}
-
-func unescapeQuotes(s string) string {
-	res := make([]byte, 0, len(s))
-	for i := 0; i < len(s); i++ {
-		// If we hit an escape sequence...
-		if s[i] == '\\' {
-			// ... keep the backslash unless it's in front of a quote ...
-			if i == len(s)-1 || (s[i+1] != '"' && s[i+1] != '\'') {
-				res = append(res, '\\')
-			}
-			// ... then point at the escaped character so it is output verbatim below.
-			// Doing this within the loop (without "continue") ensures correct handling
-			// of escaped backslashes.
-			i++
-		}
-		if i < len(s) {
-			res = append(res, s[i])
-		}
-	}
-	return string(res)
-}
-
-func smartQuotes(s string) string {
-	s = unescapeQuotes(s)
-	if strings.Contains(s, "\"") && !strings.Contains(s, "'") {
-		// If we hit this branch, the string doesn't contain any single quotes, and
-		// is being wrapped in single quotes, so no escaping is needed.
-		return "'" + s + "'"
-	}
-	// fixQuotes will wrap the string in double quotes, but will escape any
-	// double quotes that appear within the string.
-	return fixQuotes(s)
 }
