@@ -318,6 +318,10 @@ func TestNodeSortFunction(t *testing.T) {
 		c:    config.Config{SortRepeatedFieldsBySubfield: []string{"field.subfield"}},
 		want: true,
 	}, {
+		name: "SortRepeatedFieldsBySubfieldInDNSOrder",
+		c:    config.Config{SortRepeatedFieldsBySubfield: []string{"field.subfield"}, DNSSortOrder: true},
+		want: true,
+	}, {
 		name: "FieldSortOrder",
 		c: config.Config{
 			FieldSortOrder: map[string][]string{

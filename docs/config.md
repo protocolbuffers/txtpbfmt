@@ -153,6 +153,22 @@ order. Does nothing if not used with at least 1 other `sort_*` field.
 
 [Example](examples/reverse_sort.OUT.textproto)
 
+## DNSSortOrder
+`# txtpbfmt: dns_sort_order`
+
+When sorting field contents, sorts in a way intended for DNS names. It splits
+the contents on '.' characters, reverses the substrings, and sorts on their
+concatenation. This puts, e.g., `a.com` and `c.com` next to each other even if
+`b.au` is in the list.
+
+### Before formatting
+
+[Example](examples/sort_repeated_fields_by_subfield_in_dns_order.IN.textproto)
+
+### After formatting
+
+[Example](examples/sort_repeated_fields_by_subfield_in_dns_order.OUT.textproto)
+
 ## WrapHTMLStrings
 `# txtpbfmt: wrap_html_strings`
 

@@ -2149,6 +2149,48 @@ func TestParserConfigs(t *testing.T) {
 }
 `,
 	}, {
+		name: "SortRepeatedFieldsByContentInDNSOrder",
+		in: `head {
+  host: "a.com"
+  host: "b.au"
+  host: "c.com"
+}
+`,
+		config: config.Config{SortRepeatedFieldsByContent: true, DNSSortOrder: true},
+		out: `head {
+  host: "b.au"
+  host: "a.com"
+  host: "c.com"
+}
+`,
+	}, {
+		name: "SortRepeatedFieldsBySubfieldInDNSOrder",
+		in: `head {
+  hostinfo {
+    name: "a.com"
+  }
+  hostinfo {
+    name: "b.au"
+  }
+  hostinfo {
+    name: "c.com"
+  }
+}
+`,
+		config: config.Config{SortRepeatedFieldsBySubfield: []string{"hostinfo.name"}, DNSSortOrder: true},
+		out: `head {
+  hostinfo {
+    name: "b.au"
+  }
+  hostinfo {
+    name: "a.com"
+  }
+  hostinfo {
+    name: "c.com"
+  }
+}
+`,
+	}, {
 		name: "SortFieldNamesAndContents",
 		in: `presubmit: {
   auto_reviewers: "reviewerB"

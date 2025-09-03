@@ -32,6 +32,19 @@ func (e *UnsortedFieldsError) Error() string {
 	return fmt.Sprintf("fields parsed that were not specified in the parser.AddFieldSortOrder() call:\n%s", strings.Join(errs, "\n"))
 }
 
+func identityProjection(s string) string {
+	return s
+}
+
+func dnsProjection(s string) string {
+	parts := strings.Split(s, ".")
+	// Reverse `parts`.
+	for i, j := 0, len(parts)-1; i < j; i, j = i+1, j-1 {
+		parts[i], parts[j] = parts[j], parts[i]
+	}
+	return strings.Join(parts, ".")
+}
+
 // nodeSortFunction sorts the given nodes, using the parent node as context. parent can be nil.
 type nodeSortFunction func(parent *ast.Node, nodes []*ast.Node) error
 
@@ -130,13 +143,18 @@ func nodeSortFunctionConfig(c config.Config) nodeSortFunction {
 	if c.SortFieldsByFieldName {
 		sorter = ast.ChainNodeLess(sorter, ast.ByFieldName)
 	}
+	projection := identityProjection
+	if c.DNSSortOrder {
+		projection = dnsProjection
+	}
 	if c.SortRepeatedFieldsByContent {
-		sorter = ast.ChainNodeLess(sorter, ast.ByFieldValue)
+		sorter = ast.ChainNodeLess(sorter, ast.ByFieldValue(projection))
 	}
 	for _, sf := range c.SortRepeatedFieldsBySubfield {
 		field, subfieldPath := parseSubfieldSpec(sf)
 		if len(subfieldPath) > 0 {
-			sorter = ast.ChainNodeLess(sorter, ast.ByFieldSubfieldPath(field, subfieldPath))
+			sorter = ast.ChainNodeLess(sorter, ast.ByFieldSubfieldPath(field, subfieldPath,
+				projection))
 		}
 	}
 	if sorter != nil {

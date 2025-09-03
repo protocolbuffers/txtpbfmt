@@ -1,0 +1,13 @@
+# txtpbfmt: sort_repeated_fields_by_subfield=hostinfo.name
+# txtpbfmt: dns_sort_order
+head {
+  hostinfo {
+    name: "a.com"
+  }
+  hostinfo {
+    name: "b.au"
+  }
+  hostinfo {
+    name: "c.com"
+  }
+}

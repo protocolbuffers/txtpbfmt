@@ -35,6 +35,11 @@ type Config struct {
 	// Sort the Sort* fields by descending order instead of ascending order.
 	ReverseSort bool
 
+	// Sort content fields in a way that's suitable for DNS names. It splits the
+	// value around '.' characters, reverses the substrings, and concatenates to
+	// generate the sort key.
+	DNSSortOrder bool
+
 	// Map from Node.Name to the order of all fields within that node. See AddFieldSortOrder().
 	FieldSortOrder map[string][]string
 

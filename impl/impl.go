@@ -209,6 +209,8 @@ func addToConfig(metaComment string, c *config.Config) error {
 		c.SortRepeatedFieldsBySubfield = append(c.SortRepeatedFieldsBySubfield, val)
 	case "reverse_sort":
 		c.ReverseSort = true
+	case "dns_sort_order":
+		c.DNSSortOrder = true
 	case "wrap_strings_at_column":
 		// If multiple of this MetaComment exists in the file, take the last one.
 		if !hasEqualSign {
