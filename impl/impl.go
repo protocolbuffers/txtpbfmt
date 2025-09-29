@@ -158,17 +158,12 @@ func ParseWithMetaCommentConfig(in []byte, c config.Config) ([]*ast.Node, error)
 			return nil, fmt.Errorf("proto_descriptor is required when using sort_fields_by_field_number")
 		}
 
-		if c.MessageFullName == "" {
-			return nil, fmt.Errorf("message_full_name is required when using proto_descriptor")
-		}
-
-		loader := descriptor.NewLoader(c.ProtoDescriptor)
-		if err := loader.LoadDescriptor(); err != nil {
-			return nil, fmt.Errorf("failed to load descriptor file %s: %v", c.ProtoDescriptor, err)
+		loader, err := descriptor.NewLoader(c.ProtoDescriptor)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create descriptor loader: %v", err)
 		}
 
 		// Get root message descriptor
-		var err error
 		rootDesc, err = loader.GetRootMessageDescriptor(c.MessageFullName)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get root message descriptor: %v", err)
