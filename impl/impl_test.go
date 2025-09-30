@@ -223,7 +223,7 @@ func TestParseWithMetaCommentConfig_ErrorHandling(t *testing.T) {
 			name: "SortFieldsByFieldNumber without MessageFullName",
 			config: config.Config{
 				SortFieldsByFieldNumber: true,
-				ProtoDescriptor:         "testdata/test.desc",
+				ProtoDescriptor:         filepath.Join("..", "testdata", "test.desc"),
 				MessageFullName:         "",
 			},
 			input:          `name: "test"`,
@@ -239,7 +239,7 @@ func TestParseWithMetaCommentConfig_ErrorHandling(t *testing.T) {
 			},
 			input:          `name: "test"`,
 			expectError:    true,
-			errorSubstring: "failed to load descriptor file",
+			errorSubstring: "failed to read descriptor file",
 		},
 		{
 			name: "SortFieldsByFieldNumber with invalid message name",
