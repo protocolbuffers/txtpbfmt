@@ -7,4 +7,5 @@ require (
 	github.com/google/go-cmp v0.6.0
 	github.com/kylelemons/godebug v1.1.0
 	github.com/mitchellh/go-wordwrap v1.0.1
+	google.golang.org/protobuf v1.33.0
 )

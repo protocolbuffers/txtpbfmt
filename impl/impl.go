@@ -9,8 +9,10 @@ import (
 	"strconv"
 	"strings"
 
+	"google.golang.org/protobuf/reflect/protoreflect"
 	"github.com/protocolbuffers/txtpbfmt/ast"
 	"github.com/protocolbuffers/txtpbfmt/config"
+	"github.com/protocolbuffers/txtpbfmt/descriptor"
 	"github.com/protocolbuffers/txtpbfmt/quote"
 	"github.com/protocolbuffers/txtpbfmt/sort"
 	"github.com/protocolbuffers/txtpbfmt/wrap"
@@ -148,13 +150,33 @@ func ParseWithMetaCommentConfig(in []byte, c config.Config) ([]*ast.Node, error)
 	if err != nil {
 		return nil, err
 	}
+
+	// Load descriptor if field number sorting is enabled
+	var rootDesc protoreflect.MessageDescriptor
+	if c.SortFieldsByFieldNumber {
+		if c.ProtoDescriptor == "" {
+			return nil, fmt.Errorf("proto_descriptor is required when using sort_fields_by_field_number")
+		}
+
+		loader, err := descriptor.NewLoader(c.ProtoDescriptor)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create descriptor loader: %v", err)
+		}
+
+		// Get root message descriptor
+		rootDesc, err = loader.GetRootMessageDescriptor(c.MessageFullName)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get root message descriptor: %v", err)
+		}
+	}
+
 	if p.config.InfoLevel() {
 		p.config.Infof("p.in: %q", string(p.in))
 		p.config.Infof("p.length: %v", p.length)
 	}
 	// Although unnamed nodes aren't strictly allowed, some formats represent a
 	// list of protos as a list of unnamed top-level nodes.
-	nodes, _, err := p.parse( /*isRoot=*/ true)
+	nodes, _, err := p.parse( /*isRoot=*/ true, rootDesc)
 	if err != nil {
 		return nil, err
 	}
@@ -288,6 +310,35 @@ func newParser(in []byte, c config.Config) (*parser, error) {
 	return parser, nil
 }
 
+// getFieldNumber returns the field number for a given field name in the descriptor.
+func getFieldNumber(desc protoreflect.MessageDescriptor, fieldName string) int32 {
+	if desc == nil {
+		return 0
+	}
+
+	field := desc.Fields().ByTextName(fieldName)
+	if field == nil {
+		return 0
+	}
+	return int32(field.Number())
+}
+
+// findChildDescriptor finds the descriptor for a nested message field.
+func (p *parser) findChildDescriptor(desc protoreflect.MessageDescriptor, fieldName string) protoreflect.MessageDescriptor {
+	if desc == nil {
+		return nil
+	}
+
+	field := desc.Fields().ByTextName(fieldName)
+	if field == nil {
+		return nil
+	}
+	if field.Kind() == protoreflect.MessageKind {
+		return field.Message()
+	}
+	return nil
+}
+
 func (p *parser) nextInputIs(b byte) bool {
 	return p.index < p.length && p.in[p.index] == b
 }
@@ -398,7 +449,7 @@ func (p *parser) consumeOptionalSeparator() error {
 // format (sequence of messages, each of which passes proto.UnmarshalText()).
 // endPos is the position of the first character on the first line
 // after parsed nodes: that's the position to append more children.
-func (p *parser) parse(isRoot bool) (result []*ast.Node, endPos ast.Position, err error) {
+func (p *parser) parse(isRoot bool, desc protoreflect.MessageDescriptor) (result []*ast.Node, endPos ast.Position, err error) {
 	var res []*ast.Node
 	res = []*ast.Node{} // empty children is different from nil children
 	for ld := p.getLoopDetector(); p.index < p.length; {
@@ -505,6 +556,9 @@ func (p *parser) parse(isRoot bool) (result []*ast.Node, endPos ast.Position, er
 			return nil, ast.Position{}, err
 		}
 
+		// Set field number from descriptor if available
+		nd.FieldNumber = getFieldNumber(desc, nd.Name)
+
 		// Skip separator.
 		preCommentsBeforeColon, _ := p.skipWhiteSpaceAndReadComments(true /* multiLine */)
 		nd.SkipColon = !p.consume(':')
@@ -512,7 +566,7 @@ func (p *parser) parse(isRoot bool) (result []*ast.Node, endPos ast.Position, er
 		preCommentsAfterColon, _ := p.skipWhiteSpaceAndReadComments(true /* multiLine */)
 
 		if p.consume('{') || p.consume('<') {
-			if err := p.parseMessage(nd); err != nil {
+			if err := p.parseMessage(nd, desc); err != nil {
 				return nil, ast.Position{}, err
 			}
 		} else if p.consume('[') {
@@ -562,14 +616,15 @@ func (p *parser) parseFieldName(nd *ast.Node, isRoot bool) error {
 	return nil
 }
 
-func (p *parser) parseMessage(nd *ast.Node) error {
+func (p *parser) parseMessage(nd *ast.Node, desc protoreflect.MessageDescriptor) error {
 	if p.config.SkipAllColons {
 		nd.SkipColon = true
 	}
 	nd.ChildrenSameLine = p.bracketSameLine[p.index-1]
 	nd.IsAngleBracket = p.config.PreserveAngleBrackets && p.in[p.index-1] == '<'
 	// Recursive call to parse child nodes.
-	nodes, lastPos, err := p.parse( /*isRoot=*/ false)
+	childDesc := p.findChildDescriptor(desc, nd.Name)
+	nodes, lastPos, err := p.parse( /*isRoot=*/ false, childDesc)
 	if err != nil {
 		return err
 	}
@@ -595,7 +650,7 @@ func (p *parser) parseList(nd *ast.Node, preCommentsBeforeColon, preCommentsAfte
 		// Handle list of nodes.
 		nd.ChildrenAsList = true
 
-		nodes, lastPos, err := p.parse( /*isRoot=*/ true)
+		nodes, lastPos, err := p.parse( /*isRoot=*/ true, nil)
 		if err != nil {
 			return err
 		}
