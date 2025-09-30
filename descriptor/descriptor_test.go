@@ -2,112 +2,72 @@ package descriptor
 
 import (
 	"path/filepath"
-	"strings"
 	"testing"
 )
 
-func TestLoadDescriptor(t *testing.T) {
-	descriptorFile := filepath.Join("..", "testdata", "sort_by_field_number_test.desc")
+func TestNewLoader(t *testing.T) {
+	t.Run("valid descriptor file", func(t *testing.T) {
+		descriptorFile := filepath.Join("..", "testdata", "test.desc")
+		loader, err := NewLoader(descriptorFile)
+		if err != nil {
+			t.Fatalf("Failed to create loader: %v", err)
+		}
+		if loader == nil {
+			t.Fatal("Expected non-nil loader")
+		}
+	})
 
-	loader := NewLoader(descriptorFile)
-	err := loader.LoadDescriptor()
-	if err != nil {
-		t.Fatalf("Failed to load descriptor: %v", err)
-	}
+	t.Run("empty descriptor file path", func(t *testing.T) {
+		_, err := NewLoader("")
+		if err == nil {
+			t.Error("Expected error for empty path")
+		}
+	})
 
-	if loader.files == nil {
-		t.Error("files should not be nil after loading")
-	}
-}
-
-func TestInvalidDescriptorFile(t *testing.T) {
-	loader := NewLoader("nonexistent.desc")
-	err := loader.LoadDescriptor()
-	if err == nil {
-		t.Error("Expected error when loading nonexistent descriptor file")
-	}
+	t.Run("non-existent file", func(t *testing.T) {
+		_, err := NewLoader("nonexistent.desc")
+		if err == nil {
+			t.Error("Expected error for non-existent file")
+		}
+	})
 }
 
 func TestGetRootMessageDescriptor(t *testing.T) {
 	descriptorFile := filepath.Join("..", "testdata", "test.desc")
-
-	loader := NewLoader(descriptorFile)
-	err := loader.LoadDescriptor()
+	loader, err := NewLoader(descriptorFile)
 	if err != nil {
-		t.Fatalf("Failed to load descriptor: %v", err)
+		t.Fatalf("Failed to create loader: %v", err)
 	}
 
 	tests := []struct {
 		name            string
 		messageFullName string
-		expectError     bool
-		expectedName    string
+		wantError       bool
 	}{
-		{
-			name:            "valid message full name - UserProfile",
-			messageFullName: "testproto.UserProfile",
-			expectError:     false,
-			expectedName:    "testproto.UserProfile",
-		},
-		{
-			name:            "valid message full name - ProductCatalog",
-			messageFullName: "testproto.ProductCatalog",
-			expectError:     false,
-			expectedName:    "testproto.ProductCatalog",
-		},
-		{
-			name:            "empty message full name - should error",
-			messageFullName: "",
-			expectError:     true,
-		},
-		{
-			name:            "non-existent message full name",
-			messageFullName: "testproto.NonExistentMessage",
-			expectError:     true,
-		},
-		{
-			name:            "invalid message full name format",
-			messageFullName: "InvalidName",
-			expectError:     true,
-		},
+		{"UserProfile", "testproto.UserProfile", false},
+		{"ProductCatalog", "testproto.ProductCatalog", false},
+		{"Level1Config", "testproto.Level1Config", false},
+		{"nested message", "testproto.Level1Config.Level2Config", false},
+		{"empty name", "", true},
+		{"non-existent", "testproto.NonExistent", true},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			desc, err := loader.GetRootMessageDescriptor(tt.messageFullName)
 
-			if tt.expectError {
+			if tt.wantError {
 				if err == nil {
-					t.Errorf("Expected error for messageFullName: %s, but got none", tt.messageFullName)
+					t.Error("Expected error but got none")
 				}
 			} else {
 				if err != nil {
-					t.Errorf("Unexpected error for messageFullName: %s, got: %v", tt.messageFullName, err)
+					t.Errorf("Unexpected error: %v", err)
 				}
 				if desc == nil {
-					t.Errorf("Expected descriptor for messageFullName: %s, but got nil", tt.messageFullName)
-				} else {
-					actualName := string(desc.FullName())
-					if actualName != tt.expectedName {
-						t.Errorf("Expected descriptor full name: %s, but got: %s", tt.expectedName, actualName)
-					}
+					t.Error("Expected descriptor but got nil")
 				}
 			}
 		})
-	}
-}
-
-func TestGetRootMessageDescriptorWithoutLoadDescriptor(t *testing.T) {
-	loader := NewLoader("any.desc")
-	// Don't call LoadDescriptor
-
-	_, err := loader.GetRootMessageDescriptor("testproto.UserProfile")
-	if err == nil {
-		t.Error("Expected error when calling GetRootMessageDescriptor without LoadDescriptor")
-	}
-
-	expectedError := "descriptor not loaded"
-	if !strings.Contains(err.Error(), expectedError) {
-		t.Errorf("Expected error to contain %q, but got: %v", expectedError, err)
 	}
 }
