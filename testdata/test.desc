@@ -1,0 +1,27 @@
+
+Š
+testdata/test.proto	testproto"¬
+UserProfile
+id (Rid
+priority (Rpriority
+email (	Remail
+name (	Rname
+active (Ractive/
+config
+ (2.testproto.Level1ConfigRconfig"j
+ProductCatalog
+id (Rid
+enabled (Renabled
+name (	Rname
+priority (Rpriority"”
+Level1Config
+id (Rid
+enabled (Renabled
+name (	Rname
+priority (Rpriority<
+level2 (2$.testproto.Level1Config.Level2ConfigRlevel2l
+Level2Config
+name (	Rname
+value (	Rvalue
+active (Ractive
+priority (RpriorityB.Z,github.com/protocolbuffers/txtpbfmt/testdatabproto3
