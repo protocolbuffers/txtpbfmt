@@ -24,6 +24,9 @@ var (
 	expandAllChildren                      = flag.Bool("expand_all_children", false, "Expand all children irrespective of initial state.")
 	skipAllColons                          = flag.Bool("skip_all_colons", false, "Skip colons whenever possible.")
 	sortFieldsByFieldName                  = flag.Bool("sort_fields_by_field_name", false, "Sort fields by field name.")
+	sortFieldsByFieldNumber                = flag.Bool("sort_fields_by_field_number", false, "Sort fields by field number from proto definition.")
+	protoDescriptor                        = flag.String("proto_descriptor", "", "Path to protobuf descriptor file (.desc)")
+	messageFullName                        = flag.String("message_full_name", "", "Full message type name for field number lookup (required, e.g. google.protobuf.Any)")
 	sortRepeatedFieldsByContent            = flag.Bool("sort_repeated_fields_by_content", false, "Sort adjacent scalar fields of the same field name by their contents.")
 	sortRepeatedFieldsBySubfield           = flag.String("sort_repeated_fields_by_subfield", "", "Sort adjacent message fields of the given field name by the contents of the given subfield.")
 	removeDuplicateValuesForRepeatedFields = flag.Bool("remove_duplicate_values_for_repeated_fields", false, "Remove lines that have the same field name and scalar value as another.")
@@ -88,6 +91,9 @@ func processPath(path string) error {
 		ExpandAllChildren:                      *expandAllChildren,
 		SkipAllColons:                          *skipAllColons,
 		SortFieldsByFieldName:                  *sortFieldsByFieldName,
+		SortFieldsByFieldNumber:                *sortFieldsByFieldNumber,
+		ProtoDescriptor:                        *protoDescriptor,
+		MessageFullName:                        *messageFullName,
 		SortRepeatedFieldsByContent:            *sortRepeatedFieldsByContent,
 		SortRepeatedFieldsBySubfield:           strings.Split(*sortRepeatedFieldsBySubfield, ","),
 		RemoveDuplicateValuesForRepeatedFields: *removeDuplicateValuesForRepeatedFields,
