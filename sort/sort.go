@@ -143,6 +143,9 @@ func nodeSortFunctionConfig(c config.Config) nodeSortFunction {
 	if c.SortFieldsByFieldName {
 		sorter = ast.ChainNodeLess(sorter, ast.ByFieldName)
 	}
+	if c.SortFieldsByFieldNumber {
+		sorter = ast.ChainNodeLess(sorter, ast.ByFieldNumber)
+	}
 	projection := identityProjection
 	if c.DNSSortOrder {
 		projection = dnsProjection

@@ -24,6 +24,15 @@ type Config struct {
 	// Sort fields by field name.
 	SortFieldsByFieldName bool
 
+	// Sort fields by field number from proto definition.
+	SortFieldsByFieldNumber bool
+
+	// Path to protobuf descriptor file (.desc).
+	ProtoDescriptor string
+
+	// Full message type name for field number lookup (required, e.g. google.protobuf.Any).
+	MessageFullName string
+
 	// Sort adjacent scalar fields of the same field name by their contents.
 	SortRepeatedFieldsByContent bool
 
