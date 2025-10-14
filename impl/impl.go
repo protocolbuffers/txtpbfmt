@@ -494,26 +494,8 @@ func (p *parser) parse(isRoot bool, desc protoreflect.MessageDescriptor) (result
 			comments = append(comments, c...)
 		}
 
-		if endPos := p.position(); p.consume('}') || p.consume('>') || p.consume(']') {
-			// Handle comments after last child.
-
-			if len(comments) > 0 {
-				res = append(res, &ast.Node{Start: startPos, PreComments: comments})
-			}
-
-			// endPos points at the closing brace, but we should rather return the position
-			// of the first character after the previous item. Therefore let's rewind a bit:
-			for endPos.Byte > 0 && p.in[endPos.Byte-1] == ' ' {
-				endPos.Byte--
-				endPos.Column--
-			}
-
-			if err = p.consumeOptionalSeparator(); err != nil {
-				return nil, ast.Position{}, err
-			}
-
-			// Done parsing children.
-			return res, endPos, nil
+		if end, endPos, err := p.handleEndOfMessage(startPos, comments, &res); end {
+			return res, endPos, err
 		}
 
 		nd := &ast.Node{
@@ -544,10 +526,9 @@ func (p *parser) parse(isRoot bool, desc protoreflect.MessageDescriptor) (result
 		}
 
 		// Handle end of file.
-		if p.index >= p.length {
-			nd.End = p.position()
-			if len(nd.PreComments) > 0 {
-				res = append(res, nd)
+		if end, err := p.handleEndOfFile(nd, &res); end {
+			if err != nil {
+				return nil, ast.Position{}, err
 			}
 			break
 		}
@@ -565,37 +546,80 @@ func (p *parser) parse(isRoot bool, desc protoreflect.MessageDescriptor) (result
 		previousPos := p.position()
 		preCommentsAfterColon, _ := p.skipWhiteSpaceAndReadComments(true /* multiLine */)
 
-		if p.consume('{') || p.consume('<') {
-			if err := p.parseMessage(nd, desc); err != nil {
-				return nil, ast.Position{}, err
-			}
-		} else if p.consume('[') {
-			if err := p.parseList(nd, preCommentsBeforeColon, preCommentsAfterColon); err != nil {
-				return nil, ast.Position{}, err
-			}
-			if nd.ValuesAsList {
-				res = append(res, nd)
-				continue
-			}
-		} else {
-			// Rewind comments.
-			p.rollbackPosition(previousPos)
-			// Handle Values.
-			var err error
-			nd.Values, err = p.readValues()
-			if err != nil {
-				return nil, ast.Position{}, err
-			}
-			if err := p.consumeOptionalSeparator(); err != nil {
-				return nil, ast.Position{}, err
-			}
+		if err := p.parseFieldValue(nd, desc, preCommentsBeforeColon, preCommentsAfterColon, previousPos); err != nil {
+			return nil, ast.Position{}, err
 		}
+
 		if p.config.InfoLevel() && p.index < p.length {
 			p.config.Infof("p.in[p.index]: %q", string(p.in[p.index]))
 		}
 		res = append(res, nd)
 	}
 	return res, p.position(), nil
+}
+
+func (p *parser) parseFieldValue(nd *ast.Node, desc protoreflect.MessageDescriptor, preCommentsBeforeColon, preCommentsAfterColon []string, previousPos ast.Position) error {
+	if p.consume('{') || p.consume('<') {
+		if err := p.parseMessage(nd, desc); err != nil {
+			return err
+		}
+	} else if p.consume('[') {
+		if err := p.parseList(nd, preCommentsBeforeColon, preCommentsAfterColon); err != nil {
+			return err
+		}
+		if nd.ValuesAsList {
+			return nil
+		}
+	} else {
+		// Rewind comments.
+		p.rollbackPosition(previousPos)
+		// Handle Values.
+		var err error
+		nd.Values, err = p.readValues()
+		if err != nil {
+			return err
+		}
+		if err := p.consumeOptionalSeparator(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (p *parser) handleEndOfFile(nd *ast.Node, res *[]*ast.Node) (bool, error) {
+	if p.index >= p.length {
+		nd.End = p.position()
+		if len(nd.PreComments) > 0 {
+			*res = append(*res, nd)
+		}
+		return true, nil
+	}
+	return false, nil
+}
+
+func (p *parser) handleEndOfMessage(startPos ast.Position, comments []string, res *[]*ast.Node) (bool, ast.Position, error) {
+	if endPos := p.position(); p.consume('}') || p.consume('>') || p.consume(']') {
+		// Handle comments after last child.
+
+		if len(comments) > 0 {
+			*res = append(*res, &ast.Node{Start: startPos, PreComments: comments})
+		}
+
+		// endPos points at the closing brace, but we should rather return the position
+		// of the first character after the previous item. Therefore let's rewind a bit:
+		for endPos.Byte > 0 && p.in[endPos.Byte-1] == ' ' {
+			endPos.Byte--
+			endPos.Column--
+		}
+
+		if err := p.consumeOptionalSeparator(); err != nil {
+			return true, ast.Position{}, err
+		}
+
+		// Done parsing children.
+		return true, endPos, nil
+	}
+	return false, ast.Position{}, nil
 }
 
 func (p *parser) parseFieldName(nd *ast.Node, isRoot bool) error {
