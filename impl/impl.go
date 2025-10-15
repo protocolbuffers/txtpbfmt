@@ -672,62 +672,71 @@ func (p *parser) parseList(nd *ast.Node, preCommentsBeforeColon, preCommentsAfte
 
 	if p.nextInputIs('{') {
 		// Handle list of nodes.
-		nd.ChildrenAsList = true
+		return p.parseListOfNodes(nd, preComments, openBracketLine)
+	} else {
+		// Handle list of values.
+		return p.parseListOfValues(nd, preComments, openBracketLine)
+	}
+}
 
-		nodes, lastPos, err := p.parse( /*isRoot=*/ true, nil)
+func (p *parser) parseListOfNodes(nd *ast.Node, preComments []string, openBracketLine int) error {
+	nd.ChildrenAsList = true
+
+	nodes, lastPos, err := p.parse( /*isRoot=*/ true, nil)
+	if err != nil {
+		return err
+	}
+	if len(nodes) > 0 {
+		nodes[0].PreComments = preComments
+	}
+
+	nd.Children = nodes
+	nd.End = lastPos
+	nd.ClosingBraceComment = p.readInlineComment()
+	nd.ChildrenSameLine = openBracketLine == p.line
+	return nil
+}
+
+func (p *parser) parseListOfValues(nd *ast.Node, preComments []string, openBracketLine int) error {
+	nd.ValuesAsList = true // We found values in list - keep it as list.
+
+	for ld := p.getLoopDetector(); !p.consume(']') && p.index < p.length; {
+		if err := ld.iter(); err != nil {
+			return err
+		}
+
+		// Read each value in the list.
+		vals, err := p.readValues()
 		if err != nil {
 			return err
 		}
-		if len(nodes) > 0 {
-			nodes[0].PreComments = preComments
+		if len(vals) != 1 {
+			return fmt.Errorf("multiple-string value not supported (%v). Please add comma explicitly, see http://b/162070952", vals)
+		}
+		if len(preComments) > 0 {
+			// If we read preComments before readValues(), they should go first,
+			// but avoid copy overhead if there are none.
+			vals[0].PreComments = append(preComments, vals[0].PreComments...)
 		}
 
-		nd.Children = nodes
-		nd.End = lastPos
-		nd.ClosingBraceComment = p.readInlineComment()
-		nd.ChildrenSameLine = openBracketLine == p.line
-	} else {
-		// Handle list of values.
-		nd.ValuesAsList = true // We found values in list - keep it as list.
-
-		for ld := p.getLoopDetector(); !p.consume(']') && p.index < p.length; {
-			if err := ld.iter(); err != nil {
-				return err
-			}
-
-			// Read each value in the list.
-			vals, err := p.readValues()
-			if err != nil {
-				return err
-			}
-			if len(vals) != 1 {
-				return fmt.Errorf("multiple-string value not supported (%v). Please add comma explicitly, see http://b/162070952", vals)
-			}
-			if len(preComments) > 0 {
-				// If we read preComments before readValues(), they should go first,
-				// but avoid copy overhead if there are none.
-				vals[0].PreComments = append(preComments, vals[0].PreComments...)
-			}
-
-			// Skip separator.
-			_, _ = p.skipWhiteSpaceAndReadComments(false /* multiLine */)
-			if p.consume(',') {
-				vals[0].InlineComment = p.readInlineComment()
-			}
-
-			nd.Values = append(nd.Values, vals...)
-
-			preComments, _ = p.skipWhiteSpaceAndReadComments(true /* multiLine */)
+		// Skip separator.
+		_, _ = p.skipWhiteSpaceAndReadComments(false /* multiLine */)
+		if p.consume(',') {
+			vals[0].InlineComment = p.readInlineComment()
 		}
-		nd.ChildrenSameLine = openBracketLine == p.line
 
-		// Handle comments after last line (or for empty list)
-		nd.PostValuesComments = preComments
-		nd.ClosingBraceComment = p.readInlineComment()
+		nd.Values = append(nd.Values, vals...)
 
-		if err := p.consumeOptionalSeparator(); err != nil {
-			return err
-		}
+		preComments, _ = p.skipWhiteSpaceAndReadComments(true /* multiLine */)
+	}
+	nd.ChildrenSameLine = openBracketLine == p.line
+
+	// Handle comments after last line (or for empty list)
+	nd.PostValuesComments = preComments
+	nd.ClosingBraceComment = p.readInlineComment()
+
+	if err := p.consumeOptionalSeparator(); err != nil {
+		return err
 	}
 	return nil
 }
