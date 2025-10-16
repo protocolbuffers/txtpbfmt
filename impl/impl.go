@@ -54,25 +54,30 @@ func (s *bracketState) processChar(c byte, i int, in []byte, allowTripleQuotedSt
 		if s.insideComment {
 			return
 		}
-		delim := string(c)
-		tripleQuoted := false
-		if allowTripleQuotedStrings && i+3 <= len(in) {
-			triple := string(in[i : i+3])
-			if triple == `"""` || triple == `'''` {
-				delim = triple
-				tripleQuoted = true
-			}
+		s.handleQuotes(c, i, in, allowTripleQuotedStrings)
+	}
+}
+
+func (s *bracketState) handleQuotes(c byte, i int, in []byte, allowTripleQuotedStrings bool) {
+	delim := string(c)
+	tripleQuoted := false
+	if allowTripleQuotedStrings && i+3 <= len(in) {
+		triple := string(in[i : i+3])
+		if triple == `"""` || triple == `'''` {
+			delim = triple
+			tripleQuoted = true
 		}
-		if s.insideString {
-			if s.stringDelimiter == delim && (s.insideTripleQuotedString || !s.isEscapedChar) {
-				s.insideString = false
-				s.insideTripleQuotedString = false
-			}
-		} else {
-			s.insideString = true
-			s.insideTripleQuotedString = tripleQuoted
-			s.stringDelimiter = delim
+	}
+
+	if s.insideString {
+		if s.stringDelimiter == delim && (s.insideTripleQuotedString || !s.isEscapedChar) {
+			s.insideString = false
+			s.insideTripleQuotedString = false
 		}
+	} else {
+		s.insideString = true
+		s.insideTripleQuotedString = tripleQuoted
+		s.stringDelimiter = delim
 	}
 }
 
