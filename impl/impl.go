@@ -92,21 +92,26 @@ func sameLineBrackets(in []byte, allowTripleQuotedStrings bool) (map[int]bool, e
 	var open []bracket // Stack.
 	res := map[int]bool{}
 	state := bracketState{}
+
 	for i, c := range in {
 		state.processChar(c, i, in, allowTripleQuotedStrings)
+
+		if state.insideComment || state.insideString || state.insideTemplate {
+			updateEscapeState(&state, c)
+			if c == '\n' {
+				line++
+				state.insideComment = false
+			}
+			continue
+		}
+
 		switch c {
 		case '\n':
 			line++
 			state.insideComment = false
 		case '{', '<':
-			if state.insideComment || state.insideString || state.insideTemplate {
-				continue
-			}
 			open = append(open, bracket{index: i, line: line})
 		case '}', '>':
-			if state.insideComment || state.insideString || state.insideTemplate {
-				continue
-			}
 			if len(open) == 0 {
 				return nil, fmt.Errorf("too many '}' or '>' at line %d, index %d", line, i)
 			}
@@ -117,17 +122,20 @@ func sameLineBrackets(in []byte, allowTripleQuotedStrings bool) (map[int]bool, e
 				res[br.index] = true
 			}
 		}
-		if state.isEscapedChar {
-			state.isEscapedChar = false
-		} else if c == '\\' && state.insideString && !state.insideTripleQuotedString {
-			state.isEscapedChar = true
-		}
-
+		updateEscapeState(&state, c)
 	}
 	if state.insideString {
 		return nil, fmt.Errorf("unterminated string literal")
 	}
 	return res, nil
+}
+
+func updateEscapeState(state *bracketState, c byte) {
+	if state.isEscapedChar {
+		state.isEscapedChar = false
+	} else if c == '\\' && state.insideString && !state.insideTripleQuotedString {
+		state.isEscapedChar = true
+	}
 }
 
 var (
