@@ -254,6 +254,8 @@ func addToConfig(metaComment string, c *config.Config) error {
 		c.WrapStringsAfterNewlines = true
 	case "wrap_strings_without_wordwrap":
 		c.WrapStringsWithoutWordwrap = true
+	case "use_short_repeated_primitive_fields":
+		c.UseShortRepeatedPrimitiveFields = true
 	case "on": // This doesn't change the overall config.
 	case "off": // This doesn't change the overall config.
 	default:

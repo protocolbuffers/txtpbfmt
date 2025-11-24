@@ -151,6 +151,43 @@ func TestProcess(t *testing.T) {
 			},
 		},
 	}, {
+		name: "use short repeated primitive fields",
+		nodes: []*ast.Node{
+			{Name: "foo", Values: []*ast.Value{{Value: "1"}}},
+			{Name: "foo", Values: []*ast.Value{{Value: "2"}}},
+			{Name: "bar", Values: []*ast.Value{{Value: "3"}}},
+		},
+		c: config.Config{
+			UseShortRepeatedPrimitiveFields: true,
+		},
+		want: []*ast.Node{
+			{Name: "foo", Values: []*ast.Value{{Value: "1"}, {Value: "2"}}, ValuesAsList: true, ChildrenSameLine: true},
+			{Name: "foo", Values: []*ast.Value{{Value: "2"}}, Deleted: true},
+			{Name: "bar", Values: []*ast.Value{{Value: "3"}}},
+		},
+	}, {
+		name: "use short repeated primitive fields with single element list (ValuesAsList: true)",
+		nodes: []*ast.Node{
+			{Name: "foo", Values: []*ast.Value{{Value: "1"}}, ValuesAsList: true},
+		},
+		c: config.Config{
+			UseShortRepeatedPrimitiveFields: true,
+		},
+		want: []*ast.Node{
+			{Name: "foo", Values: []*ast.Value{{Value: "1"}}, ValuesAsList: true},
+		},
+	}, {
+		name: "use short repeated primitive fields with single element list (ValuesAsList: false)",
+		nodes: []*ast.Node{
+			{Name: "foo", Values: []*ast.Value{{Value: "1"}}},
+		},
+		c: config.Config{
+			UseShortRepeatedPrimitiveFields: true,
+		},
+		want: []*ast.Node{
+			{Name: "foo", Values: []*ast.Value{{Value: "1"}}},
+		},
+	}, {
 		name: "error in sort function",
 		nodes: []*ast.Node{
 			{Name: "a"},
@@ -184,7 +221,7 @@ func TestProcess(t *testing.T) {
 			if tc.skipValuesFunction {
 				valuesFunction = nil
 			}
-			err := process(nil, tc.nodes, sortFunction, filterFunction, valuesFunction)
+			err := process(nil, tc.nodes, sortFunction, filterFunction, valuesFunction, tc.c)
 			if tc.wantErr != "" {
 				if err == nil {
 					t.Errorf("process(%v, %v, %v, %v) got nil error, want %q", tc.nodes, sortFunction, filterFunction, valuesFunction, tc.wantErr)

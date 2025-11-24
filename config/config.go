@@ -87,6 +87,11 @@ type Config struct {
 	// Use single quotes around strings that contain double but not single quotes.
 	SmartQuotes bool
 
+	// Use a short representation for repeated primitive fields (`x: 1 x: 2` vs `x: [1, 2]`). If this
+	// field is true, all repeated primitive fields will use the short representation; otherwise, the
+	// latter will be used only if it's being used in the input textproto.
+	UseShortRepeatedPrimitiveFields bool
+
 	// Logger enables logging when it is non-nil.
 	// If the log messages aren't going to be useful, it's best to leave Logger
 	// set to nil, as otherwise log messages will be constructed.

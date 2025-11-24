@@ -1810,10 +1810,122 @@ a, b,
 `}, {
 		name: "carriage return \\r is formatted away",
 		in:   `foo: "bar"` + "\r" + `baz: "bat"` + "\r",
-		out:  `foo: "bar"` + "\n" + `baz: "bat"` + "\n"}, {
+		out:  `foo: "bar"` + "\n" + `baz: "bat"` + "\n",
+	}, {
 		name: "Windows-style newline \\r\\n is formatted away",
 		in:   `foo: "bar"` + "\r\n" + `baz: "bat"` + "\r\n",
-		out:  `foo: "bar"` + "\n" + `baz: "bat"` + "\n"}}
+		out:  `foo: "bar"` + "\n" + `baz: "bat"` + "\n",
+	}, {
+		name: "use short repeated primitive fields",
+		in: `# txtpbfmt: use_short_repeated_primitive_fields
+foo: 1
+foo: 2
+foo: 3
+`,
+		out: `# txtpbfmt: use_short_repeated_primitive_fields
+foo: [1, 2, 3]
+`}, {
+		name: "use short repeated primitive fields with single element list",
+		in: `# txtpbfmt: use_short_repeated_primitive_fields
+foo: 1
+`,
+		out: `# txtpbfmt: use_short_repeated_primitive_fields
+foo: 1
+`}, {
+		name: "use short repeated primitive fields with interleaved list",
+		in: `# txtpbfmt: use_short_repeated_primitive_fields
+foo: 1
+foo: 2
+bar: 3
+foo: 4
+foo: 5
+bar: 6
+bar: 7
+foo: 8
+`,
+		out: `# txtpbfmt: use_short_repeated_primitive_fields
+foo: [1, 2]
+bar: 3
+foo: [4, 5]
+bar: [6, 7]
+foo: 8
+`}, {
+		name: "use short repeated primitive fields with string field",
+		in: `# txtpbfmt: use_short_repeated_primitive_fields
+foo: "a"
+foo: "b"
+`,
+		out: `# txtpbfmt: use_short_repeated_primitive_fields
+foo: ["a", "b"]
+`}, {
+		name: "use short repeated primitive fields with message field",
+		in: `# txtpbfmt: use_short_repeated_primitive_fields
+foo { x: 1 }
+foo { x: 2 }
+`,
+		out: `# txtpbfmt: use_short_repeated_primitive_fields
+foo { x: 1 }
+foo { x: 2 }
+`}, {
+		name: "use short repeated primitive fields inside message",
+		in: `# txtpbfmt: use_short_repeated_primitive_fields
+foo { x: 1 x: 2 x: 3 }
+foo { x: 4 }
+foo { x: 5 x: 6 }
+`,
+		out: `# txtpbfmt: use_short_repeated_primitive_fields
+foo { x: [1, 2, 3] }
+foo { x: 4 }
+foo { x: [5, 6] }
+`}, {
+		name: "use short repeated primitive fields with inline comments",
+		in: `# txtpbfmt: use_short_repeated_primitive_fields
+foo: 1 # inline comment a
+foo: 2
+foo: 3 # inline comment b
+foo: 4
+`,
+		out: `# txtpbfmt: use_short_repeated_primitive_fields
+foo: [
+  1,  # inline comment a
+  2,
+  3,  # inline comment b
+  4
+]
+`}, {
+		name: "use short repeated primitive fields with pre comments",
+		in: `# txtpbfmt: use_short_repeated_primitive_fields
+# pre comment a
+foo: 1
+foo: 2
+foo: 3
+# pre comment b
+foo: 4
+`,
+		out: `# txtpbfmt: use_short_repeated_primitive_fields
+# pre comment a
+foo: [1, 2, 3]
+# pre comment b
+foo: 4
+`}, {
+		name: "use short repeated primitive fields with mixed comments",
+		in: `# txtpbfmt: use_short_repeated_primitive_fields
+foo: 1
+foo: 2
+foo: 3 # inline comment
+# pre comment
+foo: 4
+`,
+		out: `# txtpbfmt: use_short_repeated_primitive_fields
+foo: [
+  1,
+  2,
+  3  # inline comment
+]
+# pre comment
+foo: 4
+`},
+	}
 	for _, input := range inputs {
 		out, err := Format([]byte(input.in))
 		if err != nil {
