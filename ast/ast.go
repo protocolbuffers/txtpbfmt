@@ -295,6 +295,21 @@ func ByFieldNumber(_, ni, nj *Node, isWholeSlice bool) bool {
 	return ni.Name < nj.Name
 }
 
+// Formatter is a function that can format nodes in the AST.
+type Formatter func([]*Node) error
+
+var extraFormatters []Formatter
+
+// RegisterFormatter registers an extra formatter that will be called after parsing.
+func RegisterFormatter(f Formatter) {
+	extraFormatters = append(extraFormatters, f)
+}
+
+// GetFormatters returns all registered formatters.
+func GetFormatters() []Formatter {
+	return extraFormatters
+}
+
 // getChildValue returns the Value of the child with the given field name,
 // or nil if no single such child exists.
 func (n *Node) getChildValue(field string) *Value {

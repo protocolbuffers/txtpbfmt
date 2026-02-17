@@ -188,6 +188,11 @@ func ParseWithMetaCommentConfig(in []byte, c config.Config) ([]*ast.Node, error)
 	if p.index < p.length {
 		return nil, fmt.Errorf("parser didn't consume all input. Stopped at %s", p.errorContext())
 	}
+	for _, f := range ast.GetFormatters() {
+		if err := f(nodes); err != nil {
+			return nil, err
+		}
+	}
 	if err := wrap.Strings(nodes, 0, c); err != nil {
 		return nil, err
 	}
@@ -201,7 +206,7 @@ func ParseWithMetaCommentConfig(in []byte, c config.Config) ([]*ast.Node, error)
 // have the equal sign. Currently there are only two MetaComments that are in the former format:
 //
 //	"sort_repeated_fields_by_subfield": If this appears multiple times, then they will all be added
-//	to the config and the order is perserved.
+//	to the config and the order is preserved.
 //	"wrap_strings_at_column": The <val> is expected to be an integer. If it is not, then it will be
 //	ignored. If this appears multiple times, only the last one saved.
 func addToConfig(metaComment string, c *config.Config) error {
