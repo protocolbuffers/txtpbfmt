@@ -31,6 +31,14 @@ func TestError(t *testing.T) {
 	}, {
 		in:  `# txtpbfmt: off`,
 		err: "unterminated txtpbfmt off",
+	}, {
+		in: `# txtpbfmt: field_sort_order=MyNode:foo, require_field_sort_order_to_match_all_fields_in_node
+MyNode {
+  foo: 1
+  bar: 2
+}
+`,
+		err: "fields parsed that were not specified in the parser.AddFieldSortOrder() call",
 	}}
 	for _, input := range inputs {
 		out, err := Format([]byte(input.in))
@@ -1163,6 +1171,32 @@ presubmit: {
     id: 2
   }
 }
+`}, {
+		name: "field_sort_order",
+		in: `# txtpbfmt: field_sort_order=MyNode:foo bar baz
+MyNode {
+  bar: 1
+  foo: 2
+  baz: 3
+}
+`,
+		out: `# txtpbfmt: field_sort_order=MyNode:foo bar baz
+MyNode {
+  foo: 2
+  bar: 1
+  baz: 3
+}
+`}, {
+		name: "field_sort_order for root node",
+		in: `# txtpbfmt: field_sort_order=__ROOT__:foo bar baz
+bar: 1
+foo: 2
+baz: 3
+`,
+		out: `foo: 2
+# txtpbfmt: field_sort_order=__ROOT__:foo bar baz
+bar: 1
+baz: 3
 `}, {
 		name: "sort by deeper subfield path",
 		in: `# txtpbfmt: sort_repeated_fields_by_subfield=test.metadata.identifiers.id

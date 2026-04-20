@@ -221,10 +221,23 @@ func addToConfig(metaComment string, c *config.Config) error {
 		c.Disable = true
 	case "expand_all_children":
 		c.ExpandAllChildren = true
+	case "field_sort_order":
+		if !hasEqualSign {
+			return fmt.Errorf("format should be %s=<string>, got: %s", key, metaComment)
+		}
+		parts := strings.SplitN(val, ":", 2)
+		if len(parts) != 2 {
+			return fmt.Errorf("format should be %s=NodeName:field1 field2..., got: %s", key, metaComment)
+		}
+		nodeName := strings.TrimSpace(parts[0])
+		fields := strings.Fields(parts[1])
+		c.AddFieldSortOrder(nodeName, fields...)
 	case "preserve_angle_brackets":
 		c.PreserveAngleBrackets = true
 	case "remove_duplicate_values_for_repeated_fields":
 		c.RemoveDuplicateValuesForRepeatedFields = true
+	case "require_field_sort_order_to_match_all_fields_in_node":
+		c.RequireFieldSortOrderToMatchAllFieldsInNode = true
 	case "skip_all_colons":
 		c.SkipAllColons = true
 	case "smartquotes":

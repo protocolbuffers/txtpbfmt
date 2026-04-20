@@ -138,6 +138,47 @@ given subfield path.
 
 [Example](examples/sort_repeated_fields_by_subfield.OUT.textproto)
 
+## FieldSortOrder
+
+`# txtpbfmt: field_sort_order=[NodeName]:[field1] [field2] ...`
+
+Specify a custom sort order for fields within a specific node type. `NodeName`
+is the name of the message node. Use `__ROOT__` to specify the sort order for
+top-level fields in the file. Fields not listed will bubble to the top (unless
+`require_field_sort_order_to_match_all_fields_in_node` is set).
+
+### Example
+
+```textproto
+# txtpbfmt: field_sort_order=MyNode:foo bar baz
+
+MyNode {
+  bar: 1
+  foo: 2
+  baz: 3
+}
+```
+
+After formatting:
+
+```textproto
+# txtpbfmt: field_sort_order=MyNode:foo bar baz
+
+MyNode {
+  foo: 2
+  bar: 1
+  baz: 3
+}
+```
+
+## RequireFieldSortOrderToMatchAllFieldsInNode
+
+`# txtpbfmt: require_field_sort_order_to_match_all_fields_in_node`
+
+Enforce that all fields present in a node must be specified in the
+`field_sort_order` for that node. If a field is found that is not in the sort
+order, formatting will fail with an error.
+
 ## ReverseSort
 
 `# txtpbfmt: reverse_sort`
