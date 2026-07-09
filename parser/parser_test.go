@@ -826,7 +826,16 @@ presubmit: { check_presubmit_service: { address: "address" failure_status: WARNI
 `,
 		out: `# txtpbfmt: skip_all_colons
 presubmit { check_presubmit_service { address: "address" failure_status: WARNING options: "options" } }
-`}, {
+`,
+	}, {
+		name: "set_all_colons",
+		in: `# txtpbfmt: set_all_colons
+presubmit { check_presubmit_service { address: "address" failure_status: WARNING options: "options" } }
+`,
+		out: `# txtpbfmt: set_all_colons
+presubmit: { check_presubmit_service: { address: "address" failure_status: WARNING options: "options" } }
+`,
+	}, {
 		name: "separate_directives",
 		in: `# txtpbfmt: expand_all_children
 # txtpbfmt: skip_all_colons

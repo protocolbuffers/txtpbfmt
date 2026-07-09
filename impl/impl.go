@@ -240,6 +240,8 @@ func addToConfig(metaComment string, c *config.Config) error {
 		c.RequireFieldSortOrderToMatchAllFieldsInNode = true
 	case "skip_all_colons":
 		c.SkipAllColons = true
+	case "set_all_colons":
+		c.SetAllColons = true
 	case "smartquotes":
 		c.SmartQuotes = true
 	case "sort_fields_by_field_name":
@@ -668,6 +670,8 @@ func (p *parser) parseFieldName(nd *ast.Node, isRoot bool) error {
 func (p *parser) parseMessage(nd *ast.Node, desc protoreflect.MessageDescriptor) error {
 	if p.config.SkipAllColons {
 		nd.SkipColon = true
+	} else if p.config.SetAllColons {
+		nd.SkipColon = false
 	}
 	nd.ChildrenSameLine = p.bracketSameLine[p.index-1]
 	nd.IsAngleBracket = p.config.PreserveAngleBrackets && p.in[p.index-1] == '<'

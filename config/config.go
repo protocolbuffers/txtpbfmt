@@ -17,6 +17,9 @@ type Config struct {
 	// Skip colons whenever possible.
 	SkipAllColons bool
 
+	// Force colons to be present.
+	SetAllColons bool
+
 	// Allow unnamed nodes everywhere.
 	// Default is to allow only top-level nodes to be unnamed.
 	AllowUnnamedNodesEverywhere bool

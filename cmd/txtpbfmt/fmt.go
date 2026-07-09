@@ -23,6 +23,7 @@ var (
 	dryRun                                 = flag.Bool("dry_run", false, "Enable dry run mode.")
 	expandAllChildren                      = flag.Bool("expand_all_children", false, "Expand all children irrespective of initial state.")
 	skipAllColons                          = flag.Bool("skip_all_colons", false, "Skip colons whenever possible.")
+	setAllColons                           = flag.Bool("set_all_colons", false, "Force colons to be present.")
 	sortFieldsByFieldName                  = flag.Bool("sort_fields_by_field_name", false, "Sort fields by field name.")
 	sortFieldsByFieldNumber                = flag.Bool("sort_fields_by_field_number", false, "Sort fields by field number from proto definition.")
 	protoDescriptor                        = flag.String("proto_descriptor", "", "Path to protobuf descriptor file (.desc)")
@@ -90,6 +91,7 @@ func processPath(path string) error {
 	newContent, err := parser.FormatWithConfig(content, config.Config{
 		ExpandAllChildren:                      *expandAllChildren,
 		SkipAllColons:                          *skipAllColons,
+		SetAllColons:                           *setAllColons,
 		SortFieldsByFieldName:                  *sortFieldsByFieldName,
 		SortFieldsByFieldNumber:                *sortFieldsByFieldNumber,
 		ProtoDescriptor:                        *protoDescriptor,
