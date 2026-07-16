@@ -2647,23 +2647,6 @@ s:
 	}, {
 		name: "WrapStringsAtColumn_exactlyNumColumnsDoesNotWrap",
 		config: config.Config{
-			WrapStringsAtColumn: 15,
-		},
-		in: `root {
-  inner {
-    s: "89 123"
-  }
-}
-`,
-		out: `root {
-  inner {
-    s: "89 123"
-  }
-}
-`,
-	}, {
-		name: "WrapStringsAtColumn_exceedsColumnsBreaksToNextLine",
-		config: config.Config{
 			WrapStringsAtColumn: 14,
 		},
 		in: `root {
@@ -2674,8 +2657,7 @@ s:
 `,
 		out: `root {
   inner {
-    s:
-      "89 123"
+    s: "89 123"
   }
 }
 `,

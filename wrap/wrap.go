@@ -40,18 +40,6 @@ func wrapNodeStrings(nd *ast.Node, depth int, c config.Config) error {
 		if err := wrapLinesAtColumn(nd, depth, c); err != nil {
 			return err
 		}
-	} else if c.WrapStringsAtColumn > 0 && !c.WrapStringsWithoutWordwrap && len(nd.Values) == 1 && !shouldNotWrapString(nd, c) {
-		// If the string doesn't need wrapping itself (it fits on its own line),
-		// but with the field name on the current line it exceeds WrapStringsAtColumn,
-		// push it to the next line.
-		// Passing 0 as maxLength ensures the length condition is always met, isolating
-		// and reusing shouldWrapString's existing HTML and format exclusions.
-		if shouldWrapString(nd.Values[0], /* maxLength= */ 0, c) {
-			lineLength := depth*len(indentSpaces) + len(nd.Name) + 2 + len(nd.Values[0].Value)
-			if lineLength > c.WrapStringsAtColumn {
-				nd.PutSingleValueOnNextLine = true
-			}
-		}
 	}
 	if c.WrapStringsAfterNewlines && needsWrappingAfterNewlines(nd, c) {
 		if err := wrapLinesAfterNewlines(nd, c); err != nil {
