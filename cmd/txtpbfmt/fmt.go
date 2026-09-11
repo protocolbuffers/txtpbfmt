@@ -11,9 +11,12 @@ import (
 	"strings"
 
 	"flag"
+
+	"google.golang.org/protobuf/reflect/protoreflect"
 	// Google internal base/go package, commented out by copybara
 	log "github.com/golang/glog"
 	"github.com/protocolbuffers/txtpbfmt/config"
+	"github.com/protocolbuffers/txtpbfmt/descriptor"
 	"github.com/protocolbuffers/txtpbfmt/logger"
 	"github.com/protocolbuffers/txtpbfmt/parser"
 )
@@ -61,6 +64,28 @@ func contentForLogging(content []byte) string {
 	return res
 }
 
+// rootMessageDescriptor is loaded from the -proto_descriptor and
+// -message_full_name flags when field number sorting is enabled.
+var rootMessageDescriptor protoreflect.MessageDescriptor
+
+func loadRootMessageDescriptor() error {
+	if !*sortFieldsByFieldNumber {
+		return nil
+	}
+	if *protoDescriptor == "" {
+		return fmt.Errorf("-proto_descriptor is required when using -sort_fields_by_field_number")
+	}
+	loader, err := descriptor.NewLoader(*protoDescriptor)
+	if err != nil {
+		return fmt.Errorf("failed to create descriptor loader: %v", err)
+	}
+	rootMessageDescriptor, err = loader.GetRootMessageDescriptor(*messageFullName)
+	if err != nil {
+		return fmt.Errorf("failed to get root message descriptor: %v", err)
+	}
+	return nil
+}
+
 func processPath(path string) error {
 	if strings.HasPrefix(path, "//depot/google3/") {
 		path = strings.Replace(path, "//depot/google3/", "", 1)
@@ -92,8 +117,7 @@ func processPath(path string) error {
 		SkipAllColons:                          *skipAllColons,
 		SortFieldsByFieldName:                  *sortFieldsByFieldName,
 		SortFieldsByFieldNumber:                *sortFieldsByFieldNumber,
-		ProtoDescriptor:                        *protoDescriptor,
-		MessageFullName:                        *messageFullName,
+		RootMessageDescriptor:                  rootMessageDescriptor,
 		SortRepeatedFieldsByContent:            *sortRepeatedFieldsByContent,
 		SortRepeatedFieldsBySubfield:           strings.Split(*sortRepeatedFieldsBySubfield, ","),
 		RemoveDuplicateValuesForRepeatedFields: *removeDuplicateValuesForRepeatedFields,
@@ -136,6 +160,9 @@ func write(path string, content, newContent []byte) error {
 
 func main() {
 	flag.Parse()
+	if err := loadRootMessageDescriptor(); err != nil {
+		log.Exit(err)
+	}
 	paths := flag.Args()
 	if len(paths) == 0 {
 		paths = append(paths, stdinPlaceholderPath)
