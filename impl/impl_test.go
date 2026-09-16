@@ -6,7 +6,9 @@ import (
 
 	// Google internal testing/gobase/runfilestest package, commented out by copybara
 	"github.com/kylelemons/godebug/pretty"
+	"google.golang.org/protobuf/reflect/protoreflect"
 	"github.com/protocolbuffers/txtpbfmt/config"
+	"github.com/protocolbuffers/txtpbfmt/descriptor"
 )
 
 func TestPreprocess(t *testing.T) {
@@ -200,9 +202,23 @@ p        {}`,
 	}
 }
 
-func TestParseWithMetaCommentConfig_ErrorHandling(t *testing.T) {
+// rootMessageDescriptor loads the descriptor for messageFullName from the test
+// descriptor file.
+func rootMessageDescriptor(t *testing.T, messageFullName string) protoreflect.MessageDescriptor {
+	t.Helper()
 	descriptorFile := "../testdata/test.desc"
+	loader, err := descriptor.NewLoader(descriptorFile)
+	if err != nil {
+		t.Fatalf("NewLoader: %v", err)
+	}
+	desc, err := loader.GetRootMessageDescriptor(messageFullName)
+	if err != nil {
+		t.Fatalf("GetRootMessageDescriptor(%q): %v", messageFullName, err)
+	}
+	return desc
+}
 
+func TestParseWithMetaCommentConfig_ErrorHandling(t *testing.T) {
 	tests := []struct {
 		name           string
 		config         config.Config
@@ -211,48 +227,13 @@ func TestParseWithMetaCommentConfig_ErrorHandling(t *testing.T) {
 		errorSubstring string
 	}{
 		{
-			name: "SortFieldsByFieldNumber without ProtoDescriptor",
+			name: "SortFieldsByFieldNumber without RootMessageDescriptor",
 			config: config.Config{
 				SortFieldsByFieldNumber: true,
-				ProtoDescriptor:         "",
-				MessageFullName:         "testproto.UserProfile",
 			},
 			input:          `name: "test"`,
 			expectError:    true,
-			errorSubstring: "proto_descriptor is required",
-		},
-		{
-			name: "SortFieldsByFieldNumber without MessageFullName",
-			config: config.Config{
-				SortFieldsByFieldNumber: true,
-				ProtoDescriptor:         descriptorFile,
-				MessageFullName:         "",
-			},
-			input:          `name: "test"`,
-			expectError:    true,
-			errorSubstring: "message_full_name is required",
-		},
-		{
-			name: "SortFieldsByFieldNumber with invalid descriptor file",
-			config: config.Config{
-				SortFieldsByFieldNumber: true,
-				ProtoDescriptor:         "nonexistent.desc",
-				MessageFullName:         "testproto.UserProfile",
-			},
-			input:          `name: "test"`,
-			expectError:    true,
-			errorSubstring: "failed to read descriptor file",
-		},
-		{
-			name: "SortFieldsByFieldNumber with invalid message name",
-			config: config.Config{
-				SortFieldsByFieldNumber: true,
-				ProtoDescriptor:         descriptorFile,
-				MessageFullName:         "testproto.NonExistentMessage",
-			},
-			input:          `name: "test"`,
-			expectError:    true,
-			errorSubstring: "failed to get root message descriptor",
+			errorSubstring: "RootMessageDescriptor is required",
 		},
 	}
 
@@ -276,8 +257,6 @@ func TestParseWithMetaCommentConfig_ErrorHandling(t *testing.T) {
 }
 
 func TestParseWithMetaCommentConfig_SortFieldsByFieldNumber(t *testing.T) {
-	descriptorFile := "../testdata/test.desc"
-
 	tests := []struct {
 		name                  string
 		config                config.Config
@@ -289,8 +268,7 @@ func TestParseWithMetaCommentConfig_SortFieldsByFieldNumber(t *testing.T) {
 			name: "Sort fields by field number - UserProfile",
 			config: config.Config{
 				SortFieldsByFieldNumber: true,
-				ProtoDescriptor:         descriptorFile,
-				MessageFullName:         "testproto.UserProfile",
+				RootMessageDescriptor:   rootMessageDescriptor(t, "testproto.UserProfile"),
 			},
 			input: `name: "test"
 priority: 10
@@ -305,8 +283,7 @@ active: true`,
 			name: "Sort fields by field number - ProductCatalog",
 			config: config.Config{
 				SortFieldsByFieldNumber: true,
-				ProtoDescriptor:         descriptorFile,
-				MessageFullName:         "testproto.ProductCatalog",
+				RootMessageDescriptor:   rootMessageDescriptor(t, "testproto.ProductCatalog"),
 			},
 			input: `name: "product_test"
 priority: 100

@@ -2,6 +2,8 @@
 package config
 
 import (
+	"google.golang.org/protobuf/reflect/protoreflect"
+
 	"github.com/protocolbuffers/txtpbfmt/logger"
 )
 
@@ -27,11 +29,10 @@ type Config struct {
 	// Sort fields by field number from proto definition.
 	SortFieldsByFieldNumber bool
 
-	// Path to protobuf descriptor file (.desc).
-	ProtoDescriptor string
-
-	// Full message type name for field number lookup (required, e.g. google.protobuf.Any).
-	MessageFullName string
+	// Descriptor of the message at the root of the textproto, required when
+	// SortFieldsByFieldNumber is set. Load one from a descriptor file with
+	// [github.com/protocolbuffers/txtpbfmt/descriptor.Loader].
+	RootMessageDescriptor protoreflect.MessageDescriptor
 
 	// Sort adjacent scalar fields of the same field name by their contents.
 	SortRepeatedFieldsByContent bool

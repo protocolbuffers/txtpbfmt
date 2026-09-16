@@ -12,7 +12,6 @@ import (
 	"google.golang.org/protobuf/reflect/protoreflect"
 	"github.com/protocolbuffers/txtpbfmt/ast"
 	"github.com/protocolbuffers/txtpbfmt/config"
-	"github.com/protocolbuffers/txtpbfmt/descriptor"
 	"github.com/protocolbuffers/txtpbfmt/quote"
 	"github.com/protocolbuffers/txtpbfmt/sort"
 	"github.com/protocolbuffers/txtpbfmt/wrap"
@@ -156,23 +155,9 @@ func ParseWithMetaCommentConfig(in []byte, c config.Config) ([]*ast.Node, error)
 		return nil, err
 	}
 
-	// Load descriptor if field number sorting is enabled
-	var rootDesc protoreflect.MessageDescriptor
-	if c.SortFieldsByFieldNumber {
-		if c.ProtoDescriptor == "" {
-			return nil, fmt.Errorf("proto_descriptor is required when using sort_fields_by_field_number")
-		}
-
-		loader, err := descriptor.NewLoader(c.ProtoDescriptor)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create descriptor loader: %v", err)
-		}
-
-		// Get root message descriptor
-		rootDesc, err = loader.GetRootMessageDescriptor(c.MessageFullName)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get root message descriptor: %v", err)
-		}
+	rootDesc := c.RootMessageDescriptor
+	if c.SortFieldsByFieldNumber && rootDesc == nil {
+		return nil, fmt.Errorf("RootMessageDescriptor is required when using SortFieldsByFieldNumber")
 	}
 
 	if p.config.InfoLevel() {
