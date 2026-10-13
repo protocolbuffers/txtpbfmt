@@ -1,0 +1,46 @@
+"""Manifest Cod config file for txtpbfmt-cli.
+
+See go/cod/onboarding/manifest for help on this file.
+"""
+
+load("//configs/frameworks/platform/assets/team/yt_dimp_eng_team:yt-dimp-eng-team.scl", "team")
+load("//corp/platforms/cod/configs:internal_state/txtpbfmt-cli/internal_state.scl", int_st = "internal_state")
+load("//corp/platforms/cod/proto:manifest_proto.scl", "manifest_pb2")
+
+manifest = manifest_pb2.Manifest.create(
+    # Full documentation of these fields available in go/cod.proto.
+
+    # Cod will create packages containing //third_party/txtpbfmt:fmt_darwin.
+    binary_name = "fmt_darwin",
+    production_name = "txtpbfmt-cli",
+    node_type = manifest_pb2.Manifest.NodeType.COMMAND_LINE_TOOL,
+    owner_team = team,  # DO NOT EDIT! Change instead the load statement above.
+    system_id = 191321318,  # https://moma.corp.google.com/system/191321318
+    build_package = "//third_party/txtpbfmt",
+    source_root = "//depot/google3/third_party/txtpbfmt",
+    test_roots = [
+        "//depot/google3/third_party/txtpbfmt",
+    ],
+    tagline = "Formatter for text proto files",
+    release = manifest_pb2.Release.create(frequency = manifest_pb2.Release.Frequency.DAILY),
+    description = "Formatter for text proto files",
+
+    # Cod will create a dedicated role for the rapid runner.
+    dedicated_rapid_runner_role = True,  # https://ganpati2.corp.google.com/user/txtpbfmt-cli-releaser.prod
+    rapture = manifest_pb2.RaptureConfig.create(
+        disable_central_repo = True,
+    ),
+    binfs = manifest_pb2.BinFSConfig.create(
+        disable = True,
+    ),
+
+    # http://go/cod.proto?q=gmac
+    gmac = manifest_pb2.GMacConfig.create(
+        signing_cert = "public",
+        package_overrides = manifest_pb2.GMacConfig.PackageOverrides.create(
+            override_burrito_install_script_template = "//third_party/txtpbfmt:burrito/install.py",
+            override_burrito_uninstall_script_template = "//third_party/txtpbfmt:burrito/uninstall.py",
+        ),
+    ),
+    internal_state = int_st,
+)
