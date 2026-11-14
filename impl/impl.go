@@ -680,7 +680,7 @@ func (p *parser) parseList(nd *ast.Node, preCommentsBeforeColon, preCommentsAfte
 	preComments = append(preComments, preCommentsAfterColon...)
 	preComments = append(preComments, preCommentsAfterListStart...)
 
-	if p.nextInputIs('{') {
+	if p.nextInputIs('{') || p.nextInputIs('<') {
 		// Handle list of nodes.
 		return p.parseListOfNodes(nd, preComments, openBracketLine)
 	} else {

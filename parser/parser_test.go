@@ -230,6 +230,32 @@ list: [
 `,
 		out: `children: [ { name: "node_2.1" }, { name: "node_2.2" }, { name: "node_2.3" } ]
 `}, {
+		name: "list notation with [<>] with inline children",
+		in: `children: [<name: "node_2.1">, <name: "node_2.2">]
+`,
+		out: `children: [ { name: "node_2.1" }, { name: "node_2.2" } ]
+`}, {
+		name: "list notation with [<>] with multiline children and comments",
+		in: `children: [
+  # first comment
+  <
+    name: "node_2.1"
+  >,  # first inline comment
+  <
+    name: "node_2.2"
+  >
+]
+`,
+		out: `children: [
+  # first comment
+  {
+    name: "node_2.1"
+  },  # first inline comment
+  {
+    name: "node_2.2"
+  }
+]
+`}, {
 		name: "list notation with [{}] without comma separators between multiline children",
 		in: `children: [
   {
@@ -3132,6 +3158,15 @@ foo {
 foo {
   b: 2
 }
+`,
+	}, {
+		name: "PreserveAngleBrackets in list notation",
+		config: config.Config{
+			PreserveAngleBrackets: true,
+		},
+		in: `foo: [<a: 1>, {b: 2}]
+`,
+		out: `foo: [ < a: 1 >, { b: 2 } ]
 `,
 	}, {
 		name: "legacy quote behavior",
